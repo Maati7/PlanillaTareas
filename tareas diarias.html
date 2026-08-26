@@ -60,6 +60,30 @@
   .move-btn{background:none;border:1px solid var(--border);border-radius:4px;font-size:9px;line-height:1;padding:2px 4px;cursor:pointer;color:var(--text-muted);}
   .move-btn:hover:not(:disabled){background:var(--blue-light);color:var(--blue);border-color:var(--blue);}
   .move-btn:disabled{opacity:0.25;cursor:default;}
+  .item-grupo-badge{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.02em;padding:3px 6px;border-radius:10px;flex-shrink:0;white-space:nowrap;}
+  .grupo-tramites{background:var(--blue-light);color:#0C447C;}
+  .grupo-datos{background:var(--gray-bg);color:var(--text-muted);}
+  .grupo-extra{background:var(--yellow-bg);color:var(--yellow-text);}
+  .layout{display:grid;grid-template-columns:1fr 280px;gap:16px;align-items:start;}
+  .sidebar{position:sticky;top:16px;}
+  .sidebar-card{padding:16px;}
+  .sidebar-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+  .sidebar-head h3{margin:0;font-size:14px;color:var(--navy);}
+  .sidebar-collapse-btn{background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:14px;line-height:1;color:var(--text-muted);width:24px;height:24px;flex-shrink:0;}
+  .sidebar-collapse-btn:hover{background:var(--blue-light);color:var(--blue);}
+  .sidebar-section{margin-bottom:18px;}
+  .sidebar-section:last-child{margin-bottom:0;}
+  .sidebar-section-title{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.03em;margin-bottom:8px;}
+  .contacto-row{display:flex;gap:6px;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);}
+  .contacto-row:last-child{border-bottom:none;}
+  .contacto-row input{font-size:12px;padding:5px 6px;min-width:0;}
+  .contacto-row input.contacto-nombre{flex:0 0 42%;font-weight:600;}
+  .contacto-row input.contacto-dato{flex:1;}
+  #notasEquipo{width:100%;min-height:130px;font-family:inherit;font-size:12px;padding:8px;border:1px solid var(--border);border-radius:6px;resize:vertical;color:var(--text);}
+  @media (max-width: 900px){
+    .layout{grid-template-columns:1fr;}
+    .sidebar{position:static;}
+  }
   .del-btn{background:none;border:none;color:#C0392B;cursor:pointer;font-size:16px;padding:2px 6px;}
   .add-row{margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;}
   .btn{background:var(--navy);color:#fff;border:none;padding:9px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;}
@@ -138,6 +162,9 @@
   </header>
 
   <div class="venc-banner" id="vencBanner"></div>
+
+  <div class="layout">
+  <div class="main-col">
 
   <div class="tabs">
     <div class="tab-btn active" data-tab="tareas">Tareas de hoy</div>
@@ -244,6 +271,31 @@
       <div id="histEmpty" class="loading" style="display:none">Todavía no hay días guardados. Usá "Reiniciar estados de hoy" al cerrar el día para que quede registrado acá.</div>
       <div id="histList"></div>
     </div>
+  </div>
+
+  </div>
+
+  <aside class="sidebar">
+    <div class="card sidebar-card">
+      <div class="sidebar-head">
+        <h3>Información de referencia</h3>
+        <button class="sidebar-collapse-btn" id="sidebarCollapseBtn" title="Colapsar / expandir">−</button>
+      </div>
+      <div id="sidebarBody">
+        <div class="sidebar-section">
+          <div class="sidebar-section-title">Contactos</div>
+          <div id="contactosLoading" class="loading" style="padding:10px 0;font-size:12px">Cargando...</div>
+          <div id="contactosList"></div>
+          <button class="btn secondary" id="addContactoBtn" style="margin-top:8px;width:100%">+ Agregar contacto</button>
+        </div>
+        <div class="sidebar-section">
+          <div class="sidebar-section-title">Notas del equipo</div>
+          <textarea id="notasEquipo" placeholder="Notas compartidas para todo el equipo..."></textarea>
+        </div>
+      </div>
+    </div>
+  </aside>
+
   </div>
 
 </div>
@@ -446,6 +498,7 @@ document.getElementById('notifBtn').addEventListener('click', async () => {
 
 let tareas = [];
 let vencimientos = [];
+let sidebarInfo = {contactos: [], notas: ''};
 let vencCompletados = {}; // { "2026-8-<vencId>": true }
 let historial = [];
 let buques = [];
@@ -606,49 +659,57 @@ const BUQUE_ITEMS = [
   {key:'code', label:'CODE', group:'Datos técnicos'},
 ];
 
-// Orden personalizado de los ítems fijos por grupo (afecta a todos los buques, se sincroniza)
-let buqueItemsOrder = {};
+// Orden de ítems por buque (combina fijos + extra, mezclables libremente, se guarda con cada buque)
+function sincronizarOrdenItems(b){
+  if(!b.ordenItems) b.ordenItems = [];
+  const idsFijos = BUQUE_ITEMS.map(it => it.key);
+  const idsExtra = (b.itemsExtra||[]).map(it => it.id);
+  const idsValidos = new Set([...idsFijos, ...idsExtra]);
+  let cambiado = false;
 
-function getOrderedItemsForGroup(group){
-  const base = BUQUE_ITEMS.filter(it => it.group === group);
-  const orden = buqueItemsOrder && buqueItemsOrder[group];
-  if(!orden || !orden.length) return base;
-  const porKey = {};
-  base.forEach(it => { porKey[it.key] = it; });
-  const ordenados = orden.filter(k => porKey[k]).map(k => porKey[k]);
-  base.forEach(it => { if(!orden.includes(it.key)) ordenados.push(it); });
-  return ordenados;
+  const filtrado = b.ordenItems.filter(id => idsValidos.has(id));
+  if(filtrado.length !== b.ordenItems.length){ b.ordenItems = filtrado; cambiado = true; }
+
+  idsFijos.forEach(k => { if(!b.ordenItems.includes(k)){ b.ordenItems.push(k); cambiado = true; } });
+  idsExtra.forEach(k => { if(!b.ordenItems.includes(k)){ b.ordenItems.push(k); cambiado = true; } });
+
+  return cambiado;
 }
 
-async function moverItemFijo(group, key, direccion){
-  const items = getOrderedItemsForGroup(group);
-  const idx = items.findIndex(it => it.key === key);
+function itemsOrdenadosDeBuque(b){
+  const porKeyFijo = {};
+  BUQUE_ITEMS.forEach(it => { porKeyFijo[it.key] = it; });
+  const porIdExtra = {};
+  (b.itemsExtra||[]).forEach(it => { porIdExtra[it.id] = it; });
+
+  return b.ordenItems.map(id => {
+    if(porKeyFijo[id]){
+      const def = porKeyFijo[id];
+      const data = b.items[id] || {texto:'', recibido:false};
+      return {tipo:'fijo', id, label:def.label, grupo:def.group, recibido: !!data.recibido, texto: data.texto || ''};
+    }
+    if(porIdExtra[id]){
+      const def = porIdExtra[id];
+      return {tipo:'extra', id, label:def.label, grupo:'Extra', recibido: !!def.recibido, texto: def.texto || ''};
+    }
+    return null;
+  }).filter(Boolean);
+}
+
+async function moverItemBuque(b, id, direccion){
+  const idx = b.ordenItems.indexOf(id);
   const nuevoIdx = idx + direccion;
-  if(idx < 0 || nuevoIdx < 0 || nuevoIdx >= items.length) return;
-  const keys = items.map(it => it.key);
-  [keys[idx], keys[nuevoIdx]] = [keys[nuevoIdx], keys[idx]];
-  buqueItemsOrder[group] = keys;
-  try{
-    await window.storage.set('buque-items-orden', JSON.stringify(buqueItemsOrder), true);
-    flashSync(true);
-  }catch(e){
-    console.error('Error al guardar orden de ítems', e);
-    flashSync(false);
-  }
+  if(idx < 0 || nuevoIdx < 0 || nuevoIdx >= b.ordenItems.length) return;
+  [b.ordenItems[idx], b.ordenItems[nuevoIdx]] = [b.ordenItems[nuevoIdx], b.ordenItems[idx]];
+  await saveBuques();
   renderBuques();
-}
-
-function loadBuqueItemsOrder(){
-  suscribirseADoc('buque-items-orden', (value) => {
-    buqueItemsOrder = value ? JSON.parse(value) : {};
-    renderBuques();
-  });
 }
 
 function nuevoBuqueVacio(){
   const items = {};
   BUQUE_ITEMS.forEach(it => { items[it.key] = {texto:'', recibido:false}; });
-  return {id: uid(), numero:'', nombre:'', unidad:'', exportador:'', mercaderia:'', agenciaMaritima:'', destino:'', items, itemsExtra:[], fecha: new Date().toISOString()};
+  const ordenItems = BUQUE_ITEMS.map(it => it.key);
+  return {id: uid(), numero:'', nombre:'', unidad:'', exportador:'', mercaderia:'', agenciaMaritima:'', destino:'', items, itemsExtra:[], ordenItems, fecha: new Date().toISOString()};
 }
 
 // Estado de tarjetas colapsadas (preferencia visual local, no se sincroniza entre PCs)
@@ -705,8 +766,10 @@ function renderBuques(){
   }
   empty.style.display = 'none';
 
+  let huboMigracion = false;
   buquesFiltrados.forEach(b => {
     if(!b.itemsExtra) b.itemsExtra = [];
+    if(sincronizarOrdenItems(b)) huboMigracion = true;
     const card = document.createElement('div');
     const totalItems = BUQUE_ITEMS.length + b.itemsExtra.length;
     const hechos = BUQUE_ITEMS.filter(it => b.items[it.key] && b.items[it.key].recibido).length
@@ -774,145 +837,83 @@ function renderBuques(){
     card.appendChild(head);
 
     if(!colapsado){
-      const gruposFijos = [...new Set(BUQUE_ITEMS.map(it => it.group))];
-      gruposFijos.forEach(group => {
-        const groupHead = document.createElement('div');
-        groupHead.style.fontSize = '11px';
-        groupHead.style.fontWeight = '700';
-        groupHead.style.color = 'var(--text-muted)';
-        groupHead.style.textTransform = 'uppercase';
-        groupHead.style.letterSpacing = '0.03em';
-        groupHead.style.marginTop = '12px';
-        groupHead.style.marginBottom = '2px';
-        groupHead.textContent = group;
-        card.appendChild(groupHead);
+      const itemsOrdenados = itemsOrdenadosDeBuque(b);
+      itemsOrdenados.forEach((it, idx) => {
+        const row = document.createElement('div');
+        row.className = 'checklist-item' + (it.recibido ? ' done' : '');
 
-        const itemsOrdenados = getOrderedItemsForGroup(group);
-        itemsOrdenados.forEach((it, idxEnGrupo) => {
-          const itemData = b.items[it.key] || {texto:'', recibido:false};
-          const row = document.createElement('div');
-          row.className = 'checklist-item' + (itemData.recibido ? ' done' : '');
+        const moveBox = document.createElement('div');
+        moveBox.className = 'move-box';
+        const upBtn = document.createElement('button');
+        upBtn.className = 'move-btn'; upBtn.textContent = '▲'; upBtn.title = 'Subir';
+        upBtn.disabled = idx === 0;
+        upBtn.addEventListener('click', () => moverItemBuque(b, it.id, -1));
+        const downBtn = document.createElement('button');
+        downBtn.className = 'move-btn'; downBtn.textContent = '▼'; downBtn.title = 'Bajar';
+        downBtn.disabled = idx === itemsOrdenados.length - 1;
+        downBtn.addEventListener('click', () => moverItemBuque(b, it.id, 1));
+        moveBox.appendChild(upBtn);
+        moveBox.appendChild(downBtn);
 
-          const moveBox = document.createElement('div');
-          moveBox.className = 'move-box';
-          const upBtn = document.createElement('button');
-          upBtn.className = 'move-btn'; upBtn.textContent = '▲'; upBtn.title = 'Subir (afecta a todos los buques)';
-          upBtn.disabled = idxEnGrupo === 0;
-          upBtn.addEventListener('click', () => moverItemFijo(group, it.key, -1));
-          const downBtn = document.createElement('button');
-          downBtn.className = 'move-btn'; downBtn.textContent = '▼'; downBtn.title = 'Bajar (afecta a todos los buques)';
-          downBtn.disabled = idxEnGrupo === itemsOrdenados.length - 1;
-          downBtn.addEventListener('click', () => moverItemFijo(group, it.key, 1));
-          moveBox.appendChild(upBtn);
-          moveBox.appendChild(downBtn);
+        const grupoTag = document.createElement('span');
+        const grupoClase = it.grupo === 'Trámites' ? 'tramites' : (it.grupo === 'Datos técnicos' ? 'datos' : 'extra');
+        grupoTag.className = 'item-grupo-badge grupo-' + grupoClase;
+        grupoTag.textContent = it.grupo === 'Datos técnicos' ? 'Datos' : it.grupo;
 
-          const check = document.createElement('input');
-          check.type = 'checkbox';
-          check.checked = !!itemData.recibido;
-          check.addEventListener('change', () => {
-            b.items[it.key].recibido = check.checked;
-            saveBuques();
-            renderBuques();
-          });
-
-          const label = document.createElement('label');
-          label.className = 'item-label';
-          label.textContent = it.label;
-
-          const texto = document.createElement('input');
-          texto.type = 'text';
-          texto.placeholder = 'Fecha / observación';
-          texto.value = itemData.texto || '';
-          texto.addEventListener('change', () => {
-            b.items[it.key].texto = texto.value;
-            saveBuques();
-          });
-
-          row.appendChild(moveBox);
-          row.appendChild(check);
-          row.appendChild(label);
-          row.appendChild(texto);
-          card.appendChild(row);
+        const check = document.createElement('input');
+        check.type = 'checkbox';
+        check.checked = it.recibido;
+        check.addEventListener('change', () => {
+          if(it.tipo === 'fijo'){
+            b.items[it.id].recibido = check.checked;
+          } else {
+            const extra = b.itemsExtra.find(x => x.id === it.id);
+            if(extra) extra.recibido = check.checked;
+          }
+          saveBuques();
+          renderBuques();
         });
-      });
 
-      if(b.itemsExtra.length > 0){
-        const groupHead = document.createElement('div');
-        groupHead.style.fontSize = '11px';
-        groupHead.style.fontWeight = '700';
-        groupHead.style.color = 'var(--text-muted)';
-        groupHead.style.textTransform = 'uppercase';
-        groupHead.style.letterSpacing = '0.03em';
-        groupHead.style.marginTop = '12px';
-        groupHead.style.marginBottom = '2px';
-        groupHead.textContent = 'Otros ítems';
-        card.appendChild(groupHead);
+        const label = document.createElement('label');
+        label.className = 'item-label';
+        label.textContent = it.label;
 
-        b.itemsExtra.forEach((it, idxExtra) => {
-          const row = document.createElement('div');
-          row.className = 'checklist-item' + (it.recibido ? ' done' : '');
+        const texto = document.createElement('input');
+        texto.type = 'text';
+        texto.placeholder = 'Fecha / observación';
+        texto.value = it.texto;
+        texto.addEventListener('change', () => {
+          if(it.tipo === 'fijo'){
+            b.items[it.id].texto = texto.value;
+          } else {
+            const extra = b.itemsExtra.find(x => x.id === it.id);
+            if(extra) extra.texto = texto.value;
+          }
+          saveBuques();
+        });
 
-          const moveBox = document.createElement('div');
-          moveBox.className = 'move-box';
-          const upBtn = document.createElement('button');
-          upBtn.className = 'move-btn'; upBtn.textContent = '▲'; upBtn.title = 'Subir';
-          upBtn.disabled = idxExtra === 0;
-          upBtn.addEventListener('click', () => {
-            [b.itemsExtra[idxExtra-1], b.itemsExtra[idxExtra]] = [b.itemsExtra[idxExtra], b.itemsExtra[idxExtra-1]];
-            saveBuques();
-            renderBuques();
-          });
-          const downBtn = document.createElement('button');
-          downBtn.className = 'move-btn'; downBtn.textContent = '▼'; downBtn.title = 'Bajar';
-          downBtn.disabled = idxExtra === b.itemsExtra.length - 1;
-          downBtn.addEventListener('click', () => {
-            [b.itemsExtra[idxExtra+1], b.itemsExtra[idxExtra]] = [b.itemsExtra[idxExtra], b.itemsExtra[idxExtra+1]];
-            saveBuques();
-            renderBuques();
-          });
-          moveBox.appendChild(upBtn);
-          moveBox.appendChild(downBtn);
+        row.appendChild(moveBox);
+        row.appendChild(grupoTag);
+        row.appendChild(check);
+        row.appendChild(label);
+        row.appendChild(texto);
 
-          const check = document.createElement('input');
-          check.type = 'checkbox';
-          check.checked = !!it.recibido;
-          check.addEventListener('change', () => {
-            it.recibido = check.checked;
-            saveBuques();
-            renderBuques();
-          });
-
-          const label = document.createElement('label');
-          label.className = 'item-label';
-          label.textContent = it.label;
-
-          const texto = document.createElement('input');
-          texto.type = 'text';
-          texto.placeholder = 'Fecha / observación';
-          texto.value = it.texto || '';
-          texto.addEventListener('change', () => {
-            it.texto = texto.value;
-            saveBuques();
-          });
-
+        if(it.tipo === 'extra'){
           const delItemBtn = document.createElement('button');
           delItemBtn.className = 'extra-del-btn';
           delItemBtn.textContent = '✕';
           delItemBtn.title = 'Eliminar ítem';
           delItemBtn.addEventListener('click', () => {
             b.itemsExtra = b.itemsExtra.filter(x => x.id !== it.id);
+            sincronizarOrdenItems(b);
             saveBuques();
             renderBuques();
           });
-
-          row.appendChild(moveBox);
-          row.appendChild(check);
-          row.appendChild(label);
-          row.appendChild(texto);
           row.appendChild(delItemBtn);
-          card.appendChild(row);
-        });
-      }
+        }
+
+        card.appendChild(row);
+      });
 
       const addItemBtn = document.createElement('button');
       addItemBtn.className = 'buque-add-item-btn';
@@ -921,6 +922,7 @@ function renderBuques(){
         const label = prompt('Nombre del sub-ítem (ej: Certificado fitosanitario):');
         if(!label || !label.trim()) return;
         b.itemsExtra.push({id: uid(), label: label.trim(), texto:'', recibido:false});
+        sincronizarOrdenItems(b);
         saveBuques();
         renderBuques();
       });
@@ -929,6 +931,8 @@ function renderBuques(){
 
     list.appendChild(card);
   });
+
+  if(huboMigracion) saveBuques();
 }
 
 document.getElementById('buqueSearchInput').addEventListener('input', renderBuques);
@@ -1436,6 +1440,94 @@ function renderHistorial(){
   });
 }
 
+// ---- Info de referencia (columna lateral) ----
+function loadSidebarInfo(){
+  let inicializando = false;
+  suscribirseADoc('info-referencia', async (value) => {
+    if(value){
+      sidebarInfo = JSON.parse(value);
+      if(!sidebarInfo.contactos) sidebarInfo.contactos = [];
+      if(sidebarInfo.notas === undefined) sidebarInfo.notas = '';
+    } else if(!inicializando){
+      inicializando = true;
+      sidebarInfo = {contactos: [], notas: ''};
+      try{ await window.storage.set('info-referencia', JSON.stringify(sidebarInfo)); }catch(e){}
+      return;
+    }
+    document.getElementById('contactosLoading').style.display = 'none';
+    document.getElementById('notasEquipo').value = sidebarInfo.notas || '';
+    renderContactos();
+  });
+}
+
+async function saveSidebarInfo(){
+  try{
+    await window.storage.set('info-referencia', JSON.stringify(sidebarInfo), true);
+    flashSync(true);
+    return true;
+  }catch(e){
+    console.error('Error al guardar información de referencia', e);
+    flashSync(false);
+    return false;
+  }
+}
+
+function renderContactos(){
+  const list = document.getElementById('contactosList');
+  list.innerHTML = '';
+  sidebarInfo.contactos.forEach(c => {
+    const row = document.createElement('div');
+    row.className = 'contacto-row';
+
+    const nombreInput = document.createElement('input');
+    nombreInput.className = 'contacto-nombre';
+    nombreInput.type = 'text'; nombreInput.placeholder = 'Nombre'; nombreInput.value = c.nombre || '';
+    nombreInput.addEventListener('change', () => { c.nombre = nombreInput.value; saveSidebarInfo(); });
+
+    const datoInput = document.createElement('input');
+    datoInput.className = 'contacto-dato';
+    datoInput.type = 'text'; datoInput.placeholder = 'Teléfono / dato'; datoInput.value = c.dato || '';
+    datoInput.addEventListener('change', () => { c.dato = datoInput.value; saveSidebarInfo(); });
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'del-btn'; delBtn.textContent = '✕'; delBtn.title = 'Eliminar contacto';
+    delBtn.addEventListener('click', () => {
+      sidebarInfo.contactos = sidebarInfo.contactos.filter(x => x.id !== c.id);
+      saveSidebarInfo();
+      renderContactos();
+    });
+
+    row.appendChild(nombreInput);
+    row.appendChild(datoInput);
+    row.appendChild(delBtn);
+    list.appendChild(row);
+  });
+}
+
+document.getElementById('addContactoBtn').addEventListener('click', () => {
+  sidebarInfo.contactos.push({id: uid(), nombre:'', dato:''});
+  saveSidebarInfo();
+  renderContactos();
+});
+
+document.getElementById('notasEquipo').addEventListener('change', () => {
+  sidebarInfo.notas = document.getElementById('notasEquipo').value;
+  saveSidebarInfo();
+});
+
+let sidebarColapsado = false;
+try{ sidebarColapsado = localStorage.getItem('tdp_sidebar_colapsado') === '1'; }catch(e){}
+function aplicarColapsoSidebar(){
+  document.getElementById('sidebarBody').style.display = sidebarColapsado ? 'none' : 'block';
+  document.getElementById('sidebarCollapseBtn').textContent = sidebarColapsado ? '+' : '−';
+}
+document.getElementById('sidebarCollapseBtn').addEventListener('click', () => {
+  sidebarColapsado = !sidebarColapsado;
+  try{ localStorage.setItem('tdp_sidebar_colapsado', sidebarColapsado ? '1' : '0'); }catch(e){}
+  aplicarColapsoSidebar();
+});
+aplicarColapsoSidebar();
+
 // ---- Tabs ----
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -1467,7 +1559,7 @@ document.getElementById('guardarTodoBtn').addEventListener('click', async () => 
   loadVenc();
   loadHistorial();
   loadBuques();
-  loadBuqueItemsOrder();
+  loadSidebarInfo();
   actualizarNotifBtn();
   setInterval(renderTareas, 60000);
 })();
