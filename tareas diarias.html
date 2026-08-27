@@ -62,9 +62,11 @@
     font-family:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);
   }
   .today-info{font-size:15px;font-weight:700;color:var(--accent-text);}
-  table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;}
+  .table-scroll{overflow-x:auto;}
+  table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;min-width:920px;}
   td{overflow:hidden;}
-  td select{max-width:100%;}
+  td select, td input{max-width:100%;min-width:0;box-sizing:border-box;}
+  td select{text-overflow:ellipsis;white-space:nowrap;}
   th{background:var(--blue);color:#fff;text-align:left;padding:9px 8px;font-size:11px;position:sticky;top:0;}
   td{padding:8px 8px;border-bottom:1px solid var(--border);vertical-align:top;}
   tr.dim td{color:#AAB0B8;}
@@ -218,23 +220,25 @@
 
     <div class="card">
       <div id="tareasLoading" class="loading">Cargando tareas...</div>
+      <div class="table-scroll">
       <table id="tareasTable" style="display:none">
         <thead>
           <tr>
             <th style="width:3%"></th>
-            <th style="width:10%">Área</th>
-            <th style="width:31%">Tarea</th>
-            <th style="width:9%">Frecuencia</th>
-            <th style="width:8%">Hora límite</th>
+            <th style="width:12%">Área</th>
+            <th style="width:29%">Tarea</th>
+            <th style="width:10%">Frecuencia</th>
+            <th style="width:9%">Hora límite</th>
             <th style="width:9%">Estado</th>
-            <th style="width:8%">Alerta</th>
-            <th style="width:9%">Responsable</th>
-            <th style="width:8%">Notas</th>
+            <th style="width:7%">Alerta</th>
+            <th style="width:6%">Responsable</th>
+            <th style="width:13%">Notas</th>
             <th style="width:2%"></th>
           </tr>
         </thead>
         <tbody id="tareasBody"></tbody>
       </table>
+      </div>
       <div class="add-row">
         <button class="btn secondary" id="addTareaBtn">+ Agregar tarea</button>
       </div>
@@ -1192,7 +1196,8 @@ function renderTareas(){
     areaSelect.style.border = '1px solid var(--border)';
     areaSelect.style.borderRadius = '6px';
     areaSelect.style.padding = '4px';
-    areaSelect.addEventListener('change', () => { t.area = areaSelect.value; saveTareas(); });
+    areaSelect.title = t.area;
+    areaSelect.addEventListener('change', () => { t.area = areaSelect.value; areaSelect.title = t.area; saveTareas(); });
     tdArea.appendChild(areaSelect);
     tr.appendChild(tdArea);
 
@@ -1215,14 +1220,15 @@ function renderTareas(){
     frecSelect.style.border = '1px solid var(--border)';
     frecSelect.style.borderRadius = '6px';
     frecSelect.style.padding = '4px';
-    frecSelect.addEventListener('change', () => { t.frecuencia = frecSelect.value; saveTareas(); renderTareas(); });
+    frecSelect.title = t.frecuencia;
+    frecSelect.addEventListener('change', () => { t.frecuencia = frecSelect.value; frecSelect.title = t.frecuencia; saveTareas(); renderTareas(); });
     tdFrec.appendChild(frecSelect);
     tr.appendChild(tdFrec);
 
     const tdHoraLimite = document.createElement('td');
     const horaLimiteInput = document.createElement('input');
     horaLimiteInput.type = 'time'; horaLimiteInput.value = t.horaLimite || '';
-    horaLimiteInput.style.fontSize = '12px'; horaLimiteInput.style.padding='5px';
+    horaLimiteInput.style.fontSize = '12px'; horaLimiteInput.style.padding='5px'; horaLimiteInput.style.width = '100%';
     horaLimiteInput.addEventListener('change', () => { t.horaLimite = horaLimiteInput.value; saveTareas(); renderTareas(); });
     tdHoraLimite.appendChild(horaLimiteInput);
     tr.appendChild(tdHoraLimite);
@@ -1236,9 +1242,11 @@ function renderTareas(){
       if(s === t.estado) opt.selected = true;
       estadoSelect.appendChild(opt);
     });
+    estadoSelect.title = t.estado;
     estadoSelect.addEventListener('change', () => {
       t.estado = estadoSelect.value;
       estadoSelect.className = 'estado estado-' + t.estado.replace(' ','');
+      estadoSelect.title = t.estado;
       saveTareas();
       renderTareas();
     });
