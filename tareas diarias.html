@@ -41,7 +41,7 @@
   }
   *{box-sizing:border-box;}
   body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text);}
-  .wrap{max-width:1400px;margin:0 auto;padding:24px 20px 60px;}
+  .wrap{max-width:1150px;margin:0 auto;padding:24px 20px 60px;}
   header{background:var(--navy);color:#fff;padding:22px 28px;border-radius:12px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;}
   header h1{margin:0;font-size:20px;font-weight:700;}
   header p{margin:4px 0 0;font-size:13px;color:#C9D6EC;}
@@ -52,7 +52,7 @@
   .venc-banner b{color:#5C4600;}
   .tabs{display:flex;gap:6px;margin-bottom:18px;}
   .tab-btn{flex:1;padding:12px;text-align:center;background:var(--card);border:1px solid var(--border);border-radius:10px;cursor:pointer;font-size:14px;font-weight:600;color:var(--text-muted);}
-  .tab-btn.active{background:var(--navy);color:#fff;border-color:var(--accent-text);}
+  .tab-btn.active{background:var(--navy);color:#fff;border-color:var(--navy);}
   .panel{display:none;}
   .panel.active{display:block;}
   .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px;}
@@ -61,16 +61,17 @@
   input[type=date], input[type=time], select, input[type=text], input[type=number]{
     font-family:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);
   }
-  .today-info{font-size:15px;font-weight:700;color:var(--accent-text);}
-  .table-scroll{overflow-x:auto;}
-  table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;min-width:820px;}
+  .today-info{font-size:15px;font-weight:700;color:var(--navy);}
+  table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;}
   td{overflow:hidden;}
-  td select, td input{max-width:100%;min-width:0;box-sizing:border-box;}
-  td select{text-overflow:ellipsis;white-space:nowrap;}
+  td select{max-width:100%;}
   th{background:var(--blue);color:#fff;text-align:left;padding:9px 8px;font-size:11px;position:sticky;top:0;}
   td{padding:8px 8px;border-bottom:1px solid var(--border);vertical-align:top;}
   tr.dim td{color:#AAB0B8;}
   tr.dim{background:var(--dim-bg);}
+  tr.dragging{opacity:0.4;}
+  tr.drag-over-row{box-shadow:inset 0 2px 0 var(--blue);}
+  .drag-handle-cell{text-align:center;}
   select.estado{font-weight:700;border-radius:6px;padding:5px 8px;font-size:12px;}
   .estado-Pendiente{background:var(--red-bg);color:var(--red-text);}
   .estado-Encurso{background:var(--yellow-bg);color:var(--yellow-text);}
@@ -82,8 +83,6 @@
   .drag-handle:active{cursor:grabbing;}
   .checklist-item.dragging{opacity:0.4;}
   .checklist-item.drag-over{border-top:2px solid var(--blue);}
-  tr.dragging{opacity:0.4;}
-  tr.drag-over-row{outline:2px solid var(--blue);outline-offset:-2px;}
   .item-grupo-badge{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.02em;padding:3px 6px;border-radius:10px;flex-shrink:0;white-space:nowrap;}
   .grupo-tramites{background:var(--blue-light);color:var(--accent-text);}
   .grupo-datos{background:var(--gray-bg);color:var(--text-muted);}
@@ -92,7 +91,7 @@
   .sidebar{position:sticky;top:16px;}
   .sidebar-card{padding:16px;}
   .sidebar-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
-  .sidebar-head h3{margin:0;font-size:14px;color:var(--accent-text);}
+  .sidebar-head h3{margin:0;font-size:14px;color:var(--navy);}
   .sidebar-collapse-btn{background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:14px;line-height:1;color:var(--text-muted);width:24px;height:24px;flex-shrink:0;}
   .sidebar-collapse-btn:hover{background:var(--blue-light);color:var(--blue);}
   .sidebar-section{margin-bottom:18px;}
@@ -106,19 +105,19 @@
   .del-btn{background:none;border:none;color:#C0392B;cursor:pointer;font-size:16px;padding:2px 6px;}
   .add-row{margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;}
   .btn{background:var(--navy);color:#fff;border:none;padding:9px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;}
-  .btn.secondary{background:var(--card);color:var(--accent-text);border:1px solid var(--accent-text);}
+  .btn.secondary{background:var(--card);color:var(--navy);border:1px solid var(--navy);}
   .btn.warn{background:var(--card);color:#A32D2D;border:1px solid #A32D2D;}
   .btn:hover{opacity:0.9;}
   .summary{display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap;}
   .stat{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 20px;min-width:140px;}
-  .stat .num{font-size:24px;font-weight:700;color:var(--accent-text);}
+  .stat .num{font-size:24px;font-weight:700;color:var(--navy);}
   .stat .lbl{font-size:12px;color:var(--text-muted);}
   .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:12px;}
   .cal-head{font-size:12px;font-weight:700;color:var(--text-muted);text-align:center;padding:4px 0;}
   .cal-cell{min-height:170px;max-height:230px;overflow-y:auto;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:12px;cursor:pointer;}
   .cal-cell.empty{background:transparent;border:none;cursor:default;}
   .cal-cell.today{border:2px solid var(--blue);}
-  .cal-daynum{font-weight:700;color:var(--accent-text);font-size:15px;position:sticky;top:0;background:var(--card);padding-bottom:2px;}
+  .cal-daynum{font-weight:700;color:var(--navy);font-size:15px;position:sticky;top:0;background:var(--card);padding-bottom:2px;}
   .cal-task{background:var(--blue-light);color:var(--accent-text);border-radius:4px;padding:4px 6px;margin-top:4px;font-size:11.5px;line-height:1.35;}
   .venc-list{margin-top:16px;}
   .venc-row{display:grid;grid-template-columns:70px 1fr 32px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);}
@@ -126,7 +125,7 @@
   .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.4);display:none;align-items:center;justify-content:center;z-index:50;}
   .modal-overlay.open{display:flex;}
   .modal{background:var(--card);border-radius:12px;padding:20px;width:340px;max-width:90vw;}
-  .modal h3{margin:0 0 12px;font-size:15px;color:var(--accent-text);}
+  .modal h3{margin:0 0 12px;font-size:15px;color:var(--navy);}
   .modal label{display:block;margin:10px 0 4px;}
   .modal input, .modal textarea{width:100%;font-family:inherit;font-size:13px;padding:8px;border:1px solid var(--border);border-radius:6px;}
   .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;}
@@ -143,7 +142,7 @@
   .hist-detail div{padding:2px 0;}
   .buque-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:14px;}
   .buque-head{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:12px;}
-  .buque-title{font-size:16px;font-weight:700;color:var(--accent-text);}
+  .buque-title{font-size:16px;font-weight:700;color:var(--navy);}
   .buque-sub{font-size:12px;color:var(--text-muted);margin-top:2px;}
   .buque-progress{font-size:12px;font-weight:700;padding:4px 10px;border-radius:20px;background:var(--blue-light);color:var(--accent-text);}
   .buque-progress.completo{background:var(--green-bg);color:var(--green-text);}
@@ -151,16 +150,45 @@
   .buque-atrasado-tag{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;background:var(--red-bg);color:var(--red-text);margin-top:6px;display:inline-block;}
   .buque-collapse-btn{background:none;border:none;cursor:pointer;font-size:16px;color:var(--text-muted);padding:2px 6px;flex-shrink:0;}
   .buque-add-item-btn{background:none;border:1px dashed var(--border);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;color:var(--blue);cursor:pointer;margin-top:10px;}
+  .posicion-unidad-card{margin-bottom:16px;}
+  .posicion-unidad-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+  .posicion-unidad-head h3{margin:0;color:var(--navy);font-size:16px;}
+  .posicion-obs-general{width:100%;border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:12px;font-size:13px;background:var(--yellow-bg);color:var(--yellow-text);font-weight:600;}
+  .posicion-ship-card{border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px;background:var(--dim-bg);position:relative;}
+  .posicion-ship-card .del-btn{position:absolute;top:10px;right:10px;}
+  .posicion-ship-nombre{font-size:15px;font-weight:700;border:1px solid transparent;background:transparent;padding:4px 6px;border-radius:6px;width:60%;color:var(--navy);}
+  .posicion-ship-nombre:hover, .posicion-ship-nombre:focus{border-color:var(--border);background:var(--card);}
+  .posicion-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:10px;}
+  .posicion-grid.wide{grid-template-columns:repeat(auto-fit,minmax(220px,1fr));}
+  .posicion-field{display:flex;flex-direction:column;gap:3px;}
+  .posicion-field label{font-size:10.5px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.02em;}
+  .posicion-field input, .posicion-field textarea{border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:12.5px;font-family:inherit;background:var(--card);color:var(--text);}
+  .posicion-field textarea{resize:vertical;min-height:34px;}
+  .posicion-bodegas{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:10px;}
+  .posicion-bodegas .posicion-field label{text-align:center;}
+  .posicion-bodegas .posicion-field input{text-align:center;}
   .checklist-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);}
   .checklist-item:last-child{border-bottom:none;}
   .checklist-item input[type=checkbox]{width:18px;height:18px;cursor:pointer;flex-shrink:0;}
-  .checklist-item input[type=text]{flex:1;font-size:13px;border:1px solid transparent;background:transparent;border-radius:4px;padding:3px 5px;color:var(--text);font-family:inherit;}
-  .checklist-item input[type=text]:hover, .checklist-item input[type=text]:focus{border-color:var(--border);background:var(--card);}
-  .checklist-item input.item-label{width:150px;flex:0 0 150px;font-weight:600;}
-  .checklist-item.done input.item-label{color:var(--green-text);}
+  .checklist-item label.item-label{width:150px;font-size:13px;font-weight:600;color:var(--text);flex-shrink:0;}
+  .checklist-item input[type=text]{flex:1;font-size:13px;}
+  .checklist-item.done label.item-label{color:var(--green-text);}
   .checklist-item .extra-del-btn{background:none;border:none;color:var(--red-text);cursor:pointer;font-size:14px;flex-shrink:0;padding:2px 4px;}
   .cal-task{cursor:pointer;}
   .cal-task.done{background:var(--green-bg);color:var(--green-text);text-decoration:line-through;}
+  #posicionPrintArea{display:none;}
+  @media print{
+    body > *:not(#posicionPrintArea){display:none !important;}
+    #posicionPrintArea{display:block !important;}
+    .print-title{text-align:center;font-weight:700;font-size:16px;margin-bottom:2px;}
+    .print-date{text-align:center;font-size:12px;margin-bottom:14px;}
+    .print-unidad-title{background:#1F3864;color:#fff;padding:4px 8px;font-weight:700;font-size:13px;margin-top:14px;}
+    .print-obs-general{font-size:11px;font-weight:700;padding:4px 8px;background:#FFF3D6;}
+    table.print-table{width:100%;border-collapse:collapse;margin-bottom:6px;font-size:9.5px;}
+    table.print-table td, table.print-table th{border:1px solid #999;padding:3px 4px;vertical-align:top;}
+    table.print-table th{background:#EEE;text-align:left;}
+    table.print-table{page-break-inside:avoid;margin-bottom:10px;}
+  }
 </style>
 </head>
 <body>
@@ -191,6 +219,7 @@
     <div class="tab-btn active" data-tab="tareas">Tareas de hoy</div>
     <div class="tab-btn" data-tab="calendario">Calendario</div>
     <div class="tab-btn" data-tab="buque">Buque</div>
+    <div class="tab-btn" data-tab="posicion">Posición</div>
     <div class="tab-btn" data-tab="historial">Historial</div>
   </div>
 
@@ -221,24 +250,23 @@
 
     <div class="card">
       <div id="tareasLoading" class="loading">Cargando tareas...</div>
-      <div class="table-scroll">
       <table id="tareasTable" style="display:none">
         <thead>
           <tr>
             <th style="width:3%"></th>
-            <th style="width:33%">Tarea</th>
-            <th style="width:10%">Frecuencia</th>
-            <th style="width:9%">Hora límite</th>
-            <th style="width:10%">Estado</th>
-            <th style="width:9%">Alerta</th>
-            <th style="width:11%">Responsable</th>
-            <th style="width:13%">Notas</th>
+            <th style="width:10%">Área</th>
+            <th style="width:27%">Tarea</th>
+            <th style="width:13%">Frecuencia</th>
+            <th style="width:8%">Hora límite</th>
+            <th style="width:15%">Estado</th>
+            <th style="width:8%">Alerta</th>
+            <th style="width:7%">Responsable</th>
+            <th style="width:5%">Notas</th>
             <th style="width:2%"></th>
           </tr>
         </thead>
         <tbody id="tareasBody"></tbody>
       </table>
-      </div>
       <div class="add-row">
         <button class="btn secondary" id="addTareaBtn">+ Agregar tarea</button>
       </div>
@@ -265,7 +293,7 @@
         <div class="legend">Hacé clic en un día vacío para agregar una tarea de fecha fija. Tocá una tarea ya cargada para marcarla como hecha (se pinta de verde) o desmarcarla.</div>
 
         <div class="venc-list">
-          <div style="font-weight:700;color:var(--accent-text);font-size:14px;margin-bottom:8px;">Tareas de fecha fija del mes</div>
+          <div style="font-weight:700;color:var(--navy);font-size:14px;margin-bottom:8px;">Tareas de fecha fija del mes</div>
           <div id="vencList"></div>
           <button class="btn secondary" id="addVencBtn" style="margin-top:10px">+ Agregar tarea de fecha fija</button>
         </div>
@@ -286,6 +314,37 @@
     <div id="buqueEmpty" class="loading" style="display:none">No hay buques cargados. Agregá uno con el botón de arriba.</div>
     <div id="buqueList"></div>
   </div>
+
+  <!-- POSICIÓN DE BUQUES PANEL -->
+  <div class="panel" id="panel-posicion">
+    <div class="card row">
+      <div style="font-size:13px;color:var(--text-muted)">Posición de buques por unidad — para generar el reporte que se envía por mail.</div>
+      <div style="margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button class="btn secondary" id="imprimirPosicionBtn">🖨️ Generar PDF</button>
+      </div>
+    </div>
+    <div id="posicionLoading" class="loading">Cargando posición de buques...</div>
+    <div id="posicionContent" style="display:none">
+      <div class="card posicion-unidad-card">
+        <div class="posicion-unidad-head">
+          <h3>UNIDAD 6</h3>
+          <button class="btn secondary" id="addBuquePosU6Btn">+ Agregar buque</button>
+        </div>
+        <input type="text" id="obsGeneralU6" class="notas posicion-obs-general" placeholder="Observación general de la unidad (ej: sin operar desde...)">
+        <div id="posicionListU6"></div>
+      </div>
+      <div class="card posicion-unidad-card">
+        <div class="posicion-unidad-head">
+          <h3>UNIDAD 7</h3>
+          <button class="btn secondary" id="addBuquePosU7Btn">+ Agregar buque</button>
+        </div>
+        <input type="text" id="obsGeneralU7" class="notas posicion-obs-general" placeholder="Observación general de la unidad">
+        <div id="posicionListU7"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="posicionPrintArea"></div>
 
   <!-- HISTORIAL PANEL -->
   <div class="panel" id="panel-historial">
@@ -532,18 +591,6 @@ document.getElementById('notifBtn').addEventListener('click', async () => {
 let tareas = [];
 let vencimientos = [];
 let sidebarInfo = {notas: ''};
-let dragStateTarea = null;
-
-function reordenarTarea(dragId, targetId, insertAfter){
-  if(dragId === targetId) return;
-  const fromIdx = tareas.findIndex(x => x.id === dragId);
-  if(fromIdx === -1) return;
-  const [item] = tareas.splice(fromIdx, 1);
-  let toIdx = tareas.findIndex(x => x.id === targetId);
-  if(toIdx === -1){ tareas.splice(fromIdx, 0, item); return; }
-  if(insertAfter) toIdx += 1;
-  tareas.splice(toIdx, 0, item);
-}
 let vencCompletados = {}; // { "2026-8-<vencId>": true }
 let historial = [];
 let buques = [];
@@ -721,27 +768,6 @@ function sincronizarOrdenItems(b){
   return cambiado;
 }
 
-// Nombres personalizados de los ítems fijos (compartido y sincronizado entre todos los buques)
-let itemLabelsOverride = {};
-
-function loadItemLabelsOverride(){
-  suscribirseADoc('buque-items-labels', (value) => {
-    itemLabelsOverride = value ? JSON.parse(value) : {};
-    renderBuques();
-  });
-}
-
-async function guardarItemLabelsOverride(){
-  try{
-    await window.storage.set('buque-items-labels', JSON.stringify(itemLabelsOverride), true);
-    flashSync(true);
-  }catch(e){
-    console.error('Error al guardar nombres de ítems', e);
-    flashSync(false);
-  }
-  renderBuques();
-}
-
 function itemsOrdenadosDeBuque(b){
   const porKeyFijo = {};
   BUQUE_ITEMS.forEach(it => { porKeyFijo[it.key] = it; });
@@ -752,8 +778,7 @@ function itemsOrdenadosDeBuque(b){
     if(porKeyFijo[id]){
       const def = porKeyFijo[id];
       const data = b.items[id] || {texto:'', recibido:false};
-      const label = (itemLabelsOverride && itemLabelsOverride[id]) || def.label;
-      return {tipo:'fijo', id, label, grupo:def.group, recibido: !!data.recibido, texto: data.texto || ''};
+      return {tipo:'fijo', id, label:def.label, grupo:def.group, recibido: !!data.recibido, texto: data.texto || ''};
     }
     if(porIdExtra[id]){
       const def = porIdExtra[id];
@@ -964,19 +989,9 @@ function renderBuques(){
           renderBuques();
         });
 
-        const label = document.createElement('input');
-        label.type = 'text';
+        const label = document.createElement('label');
         label.className = 'item-label';
-        label.value = it.label;
-        label.addEventListener('change', () => {
-          if(it.tipo === 'fijo'){
-            itemLabelsOverride[it.id] = label.value;
-            guardarItemLabelsOverride();
-          } else {
-            const extra = b.itemsExtra.find(x => x.id === it.id);
-            if(extra){ extra.label = label.value; saveBuques(); }
-          }
-        });
+        label.textContent = it.label;
 
         const texto = document.createElement('input');
         texto.type = 'text';
@@ -1182,7 +1197,7 @@ function renderTareas(){
     tr.draggable = true;
 
     tr.addEventListener('dragstart', () => {
-      dragStateTarea = t.id;
+      dragTareaId = t.id;
       tr.classList.add('dragging');
     });
     tr.addEventListener('dragend', () => {
@@ -1198,23 +1213,39 @@ function renderTareas(){
     tr.addEventListener('drop', (ev) => {
       ev.preventDefault();
       tr.classList.remove('drag-over-row');
-      if(!dragStateTarea || dragStateTarea === t.id) return;
+      if(!dragTareaId) return;
       const rect = tr.getBoundingClientRect();
       const insertAfter = (ev.clientY - rect.top) > rect.height / 2;
-      reordenarTarea(dragStateTarea, t.id, insertAfter);
-      dragStateTarea = null;
+      reordenarTarea(dragTareaId, t.id, insertAfter);
+      dragTareaId = null;
       saveTareas();
       renderTareas();
     });
 
-    const tdArrastre = document.createElement('td');
-    tdArrastre.style.textAlign = 'center';
-    const dragHandle = document.createElement('span');
-    dragHandle.className = 'drag-handle';
-    dragHandle.textContent = '⠿';
-    dragHandle.title = 'Arrastrar para reordenar';
-    tdArrastre.appendChild(dragHandle);
-    tr.appendChild(tdArrastre);
+    const tdDrag = document.createElement('td');
+    tdDrag.className = 'drag-handle-cell';
+    const dragHandleTarea = document.createElement('span');
+    dragHandleTarea.className = 'drag-handle';
+    dragHandleTarea.textContent = '⠿';
+    dragHandleTarea.title = 'Arrastrar para reordenar';
+    tdDrag.appendChild(dragHandleTarea);
+    tr.appendChild(tdDrag);
+
+    const tdArea = document.createElement('td');
+    const areaSelect = document.createElement('select');
+    AREAS.forEach(a => {
+      const opt = document.createElement('option');
+      opt.value = a; opt.textContent = a;
+      if(a === t.area) opt.selected = true;
+      areaSelect.appendChild(opt);
+    });
+    areaSelect.style.fontSize = '12px';
+    areaSelect.style.border = '1px solid var(--border)';
+    areaSelect.style.borderRadius = '6px';
+    areaSelect.style.padding = '4px';
+    areaSelect.addEventListener('change', () => { t.area = areaSelect.value; saveTareas(); });
+    tdArea.appendChild(areaSelect);
+    tr.appendChild(tdArea);
 
     const tdTarea = document.createElement('td');
     const tareaInput = document.createElement('input');
@@ -1235,15 +1266,14 @@ function renderTareas(){
     frecSelect.style.border = '1px solid var(--border)';
     frecSelect.style.borderRadius = '6px';
     frecSelect.style.padding = '4px';
-    frecSelect.title = t.frecuencia;
-    frecSelect.addEventListener('change', () => { t.frecuencia = frecSelect.value; frecSelect.title = t.frecuencia; saveTareas(); renderTareas(); });
+    frecSelect.addEventListener('change', () => { t.frecuencia = frecSelect.value; saveTareas(); renderTareas(); });
     tdFrec.appendChild(frecSelect);
     tr.appendChild(tdFrec);
 
     const tdHoraLimite = document.createElement('td');
     const horaLimiteInput = document.createElement('input');
     horaLimiteInput.type = 'time'; horaLimiteInput.value = t.horaLimite || '';
-    horaLimiteInput.style.fontSize = '12px'; horaLimiteInput.style.padding='5px'; horaLimiteInput.style.width = '100%';
+    horaLimiteInput.style.fontSize = '12px'; horaLimiteInput.style.padding='5px';
     horaLimiteInput.addEventListener('change', () => { t.horaLimite = horaLimiteInput.value; saveTareas(); renderTareas(); });
     tdHoraLimite.appendChild(horaLimiteInput);
     tr.appendChild(tdHoraLimite);
@@ -1257,11 +1287,9 @@ function renderTareas(){
       if(s === t.estado) opt.selected = true;
       estadoSelect.appendChild(opt);
     });
-    estadoSelect.title = t.estado;
     estadoSelect.addEventListener('change', () => {
       t.estado = estadoSelect.value;
       estadoSelect.className = 'estado estado-' + t.estado.replace(' ','');
-      estadoSelect.title = t.estado;
       saveTareas();
       renderTareas();
     });
@@ -1575,7 +1603,232 @@ function renderHistorial(){
   });
 }
 
-// ---- Info de referencia (columna lateral) ----
+// ---- Posición de buques (reporte para enviar por mail) ----
+let posicionData = {u6: {obs: '', buques: []}, u7: {obs: '', buques: []}};
+
+function nuevoBuquePosicion(){
+  return {
+    id: uid(), nombre:'', estado:'', tipoOperacion:'Exportación', cantidad:'',
+    planoCarga:'', observaciones1:'', cargador:'', declaracion:'', mercaderia:'',
+    surveyor:'', agencia:'', destino:'', draft:'', fumiga:'', coordina:'',
+    eslora:'', manga:'', puntal:'', procedencia:'',
+    bodegas: ['','','','','','',''], observaciones2:''
+  };
+}
+
+function loadPosicion(){
+  let inicializando = false;
+  suscribirseADoc('posicion-buques', async (value) => {
+    if(value){
+      posicionData = JSON.parse(value);
+      if(!posicionData.u6) posicionData.u6 = {obs:'', buques:[]};
+      if(!posicionData.u7) posicionData.u7 = {obs:'', buques:[]};
+    } else if(!inicializando){
+      inicializando = true;
+      posicionData = {u6: {obs: '', buques: []}, u7: {obs: '', buques: []}};
+      try{ await window.storage.set('posicion-buques', JSON.stringify(posicionData)); }catch(e){}
+      return;
+    }
+    document.getElementById('posicionLoading').style.display = 'none';
+    document.getElementById('posicionContent').style.display = 'block';
+    renderPosicion();
+  });
+}
+
+async function savePosicion(){
+  try{
+    await window.storage.set('posicion-buques', JSON.stringify(posicionData), true);
+    flashSync(true);
+    return true;
+  }catch(e){
+    console.error('Error al guardar posición de buques', e);
+    flashSync(false);
+    return false;
+  }
+}
+
+const POSICION_CAMPOS = [
+  ['estado','Estado','text'], ['cantidad','Cantidad / Tonelaje','text'],
+  ['agencia','Agencia','text'], ['destino','Destino','text'],
+  ['surveyor','Surveyor','text'], ['procedencia','Procedencia','text'],
+  ['eslora','Eslora','text'], ['manga','Manga','text'], ['puntal','Puntal','text'],
+  ['draft','Draft','text'], ['fumiga','Fumiga','text'], ['coordina','Coordina','text'],
+];
+const POSICION_CAMPOS_LARGOS = [
+  ['planoCarga','Plano de carga'], ['cargador','Cargador/es'], ['declaracion','Declaración'],
+  ['mercaderia','Mercadería'], ['observaciones1','Observaciones'], ['observaciones2','Observaciones (2)']
+];
+
+function renderUnidadPosicion(unidadKey, listId){
+  const unidad = posicionData[unidadKey];
+  const list = document.getElementById(listId);
+  list.innerHTML = '';
+
+  unidad.buques.forEach(barco => {
+    const card = document.createElement('div');
+    card.className = 'posicion-ship-card';
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'del-btn'; delBtn.textContent = '✕'; delBtn.title = 'Eliminar buque';
+    delBtn.addEventListener('click', () => {
+      if(!confirm('¿Eliminar este buque de la posición?')) return;
+      unidad.buques = unidad.buques.filter(x => x.id !== barco.id);
+      savePosicion();
+      renderPosicion();
+    });
+    card.appendChild(delBtn);
+
+    const nombreInput = document.createElement('input');
+    nombreInput.className = 'posicion-ship-nombre';
+    nombreInput.type = 'text'; nombreInput.placeholder = 'Nombre del buque';
+    nombreInput.value = barco.nombre || '';
+    nombreInput.addEventListener('change', () => { barco.nombre = nombreInput.value; savePosicion(); });
+    card.appendChild(nombreInput);
+
+    const tipoSelect = document.createElement('select');
+    tipoSelect.style.marginLeft = '10px';
+    ['Exportación','Importación'].forEach(op => {
+      const opt = document.createElement('option'); opt.value = op; opt.textContent = op;
+      if(barco.tipoOperacion === op) opt.selected = true;
+      tipoSelect.appendChild(opt);
+    });
+    tipoSelect.addEventListener('change', () => { barco.tipoOperacion = tipoSelect.value; savePosicion(); });
+    card.appendChild(tipoSelect);
+
+    const grid = document.createElement('div');
+    grid.className = 'posicion-grid';
+    POSICION_CAMPOS.forEach(([key, label]) => {
+      const field = document.createElement('div');
+      field.className = 'posicion-field';
+      const lbl = document.createElement('label'); lbl.textContent = label;
+      const input = document.createElement('input');
+      input.type = 'text'; input.value = barco[key] || '';
+      input.addEventListener('change', () => { barco[key] = input.value; savePosicion(); });
+      field.appendChild(lbl); field.appendChild(input);
+      grid.appendChild(field);
+    });
+    card.appendChild(grid);
+
+    const gridLargo = document.createElement('div');
+    gridLargo.className = 'posicion-grid wide';
+    POSICION_CAMPOS_LARGOS.forEach(([key, label]) => {
+      const field = document.createElement('div');
+      field.className = 'posicion-field';
+      const lbl = document.createElement('label'); lbl.textContent = label;
+      const textarea = document.createElement('textarea');
+      textarea.value = barco[key] || '';
+      textarea.addEventListener('change', () => { barco[key] = textarea.value; savePosicion(); });
+      field.appendChild(lbl); field.appendChild(textarea);
+      gridLargo.appendChild(field);
+    });
+    card.appendChild(gridLargo);
+
+    const bodegasWrap = document.createElement('div');
+    bodegasWrap.className = 'posicion-bodegas';
+    for(let i = 0; i < 7; i++){
+      const field = document.createElement('div');
+      field.className = 'posicion-field';
+      const lbl = document.createElement('label'); lbl.textContent = '#' + (i+1);
+      const input = document.createElement('input');
+      input.type = 'text'; input.value = barco.bodegas[i] || '';
+      input.addEventListener('change', () => { barco.bodegas[i] = input.value; savePosicion(); });
+      field.appendChild(lbl); field.appendChild(input);
+      bodegasWrap.appendChild(field);
+    }
+    card.appendChild(bodegasWrap);
+
+    list.appendChild(card);
+  });
+}
+
+function renderPosicion(){
+  document.getElementById('obsGeneralU6').value = posicionData.u6.obs || '';
+  document.getElementById('obsGeneralU7').value = posicionData.u7.obs || '';
+  renderUnidadPosicion('u6', 'posicionListU6');
+  renderUnidadPosicion('u7', 'posicionListU7');
+}
+
+document.getElementById('addBuquePosU6Btn').addEventListener('click', () => {
+  posicionData.u6.buques.push(nuevoBuquePosicion());
+  savePosicion();
+  renderPosicion();
+});
+document.getElementById('addBuquePosU7Btn').addEventListener('click', () => {
+  posicionData.u7.buques.push(nuevoBuquePosicion());
+  savePosicion();
+  renderPosicion();
+});
+document.getElementById('obsGeneralU6').addEventListener('change', (e) => {
+  posicionData.u6.obs = e.target.value; savePosicion();
+});
+document.getElementById('obsGeneralU7').addEventListener('change', (e) => {
+  posicionData.u7.obs = e.target.value; savePosicion();
+});
+
+function esc(v){ return v ? String(v).replace(/</g,'&lt;').replace(/\n/g,'<br>') : ''; }
+
+function tablaPrintBarco(barco){
+  const bodegasFila = barco.bodegas.map((v,i) => '#' + (i+1) + ': ' + (v || '-')).join('&nbsp;&nbsp;|&nbsp;&nbsp;');
+  const tipo = barco.tipoOperacion || 'Exportación';
+  let html = '<table class="print-table">';
+  html += '<tr>';
+  html += '<th style="width:9%">Buque</th><td style="width:13%">' + esc(barco.nombre) + '</td>';
+  html += '<th style="width:8%">Estado</th><td style="width:13%">' + esc(barco.estado) + '</td>';
+  html += '<th style="width:9%">' + esc(tipo) + '</th><td style="width:10%">' + esc(barco.cantidad) + '</td>';
+  html += '<th rowspan="4" style="width:9%;vertical-align:top">Observaciones</th>';
+  html += '<td rowspan="4" style="width:15%;vertical-align:top;font-size:9px">';
+  html += 'DRAFT: ' + esc(barco.draft) + '<br>';
+  html += 'Fumiga: ' + esc(barco.fumiga) + '<br>';
+  html += 'Coordina: ' + esc(barco.coordina);
+  if(barco.observaciones2) html += '<br>' + esc(barco.observaciones2);
+  html += '</td>';
+  html += '</tr>';
+
+  html += '<tr><th>Plano de carga</th><td colspan="3">' + esc(barco.planoCarga) + '</td>';
+  html += '<th>Cargador/es</th><td colspan="1">' + esc(barco.cargador) + '</td></tr>';
+
+  html += '<tr><th>Declaración</th><td colspan="3">' + esc(barco.declaracion) + '</td>';
+  html += '<th>Mercadería</th><td>' + esc(barco.mercaderia) + '</td></tr>';
+
+  html += '<tr><th>Surveyor</th><td>' + esc(barco.surveyor) + '</td>';
+  html += '<th>Agencia</th><td>' + esc(barco.agencia) + '</td>';
+  html += '<th>Destino</th><td>' + esc(barco.destino) + '</td></tr>';
+
+  html += '<tr><th>Eslora / Manga / Puntal</th><td>' + esc(barco.eslora) + ' / ' + esc(barco.manga) + ' / ' + esc(barco.puntal) + '</td>';
+  html += '<th>Proc.</th><td colspan="3">' + esc(barco.procedencia) + '</td>';
+  html += '<th>Bodegas 1-7</th><td>' + bodegasFila + '</td></tr>';
+
+  if(barco.observaciones1){
+    html += '<tr><th>Observaciones</th><td colspan="7">' + esc(barco.observaciones1) + '</td></tr>';
+  }
+
+  html += '</table>';
+  return html;
+}
+
+function imprimirPosicion(){
+  const hoy = new Date();
+  const fechaTexto = hoy.toLocaleDateString('es-AR', {day:'2-digit', month:'2-digit', year:'numeric'});
+  let html = '<div class="print-title">POSICIÓN DE BUQUES &nbsp; SPSA ROSARIO</div>';
+  html += '<div class="print-date">' + fechaTexto + '</div>';
+
+  html += '<div class="print-unidad-title">UNIDAD 6</div>';
+  if(posicionData.u6.obs) html += '<div class="print-obs-general">' + posicionData.u6.obs.replace(/</g,'&lt;') + '</div>';
+  if(posicionData.u6.buques.length === 0) html += '<div style="font-size:11px;padding:6px 0;">Sin buques cargados.</div>';
+  posicionData.u6.buques.forEach(b => { html += tablaPrintBarco(b); });
+
+  html += '<div class="print-unidad-title">UNIDAD 7</div>';
+  if(posicionData.u7.obs) html += '<div class="print-obs-general">' + posicionData.u7.obs.replace(/</g,'&lt;') + '</div>';
+  if(posicionData.u7.buques.length === 0) html += '<div style="font-size:11px;padding:6px 0;">Sin buques cargados.</div>';
+  posicionData.u7.buques.forEach(b => { html += tablaPrintBarco(b); });
+
+  document.getElementById('posicionPrintArea').innerHTML = html;
+  window.print();
+}
+
+document.getElementById('imprimirPosicionBtn').addEventListener('click', imprimirPosicion);
+
+
 function loadSidebarInfo(){
   let inicializando = false;
   suscribirseADoc('info-referencia', async (value) => {
@@ -1636,7 +1889,8 @@ document.getElementById('guardarTodoBtn').addEventListener('click', async () => 
   const r1 = await saveTareas();
   const r2 = await saveVenc();
   const r3 = await saveHistorial();
-  if(r1 && r2 && r3){
+  const r4 = await savePosicion();
+  if(r1 && r2 && r3 && r4){
     flashSync(true);
   } else {
     flashSync(false);
@@ -1653,7 +1907,7 @@ document.getElementById('guardarTodoBtn').addEventListener('click', async () => 
   loadVenc();
   loadHistorial();
   loadBuques();
-  loadItemLabelsOverride();
+  loadPosicion();
   loadSidebarInfo();
   actualizarNotifBtn();
   setInterval(renderTareas, 60000);
