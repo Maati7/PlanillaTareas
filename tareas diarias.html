@@ -62,9 +62,10 @@
     font-family:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);
   }
   .today-info{font-size:15px;font-weight:700;color:var(--navy);}
-  table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;}
-  td{overflow:hidden;}
-  td select{max-width:100%;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  #tareasTable{table-layout:fixed;}
+  #tareasTable td{overflow:hidden;}
+  #tareasTable select{width:100%;box-sizing:border-box;}
   th{background:var(--blue);color:#fff;text-align:left;padding:9px 8px;font-size:11px;position:sticky;top:0;}
   td{padding:8px 8px;border-bottom:1px solid var(--border);vertical-align:top;}
   tr.dim td{color:#AAB0B8;}
@@ -150,23 +151,6 @@
   .buque-atrasado-tag{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;background:var(--red-bg);color:var(--red-text);margin-top:6px;display:inline-block;}
   .buque-collapse-btn{background:none;border:none;cursor:pointer;font-size:16px;color:var(--text-muted);padding:2px 6px;flex-shrink:0;}
   .buque-add-item-btn{background:none;border:1px dashed var(--border);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;color:var(--blue);cursor:pointer;margin-top:10px;}
-  .posicion-unidad-card{margin-bottom:16px;}
-  .posicion-unidad-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
-  .posicion-unidad-head h3{margin:0;color:var(--navy);font-size:16px;}
-  .posicion-obs-general{width:100%;border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:12px;font-size:13px;background:var(--yellow-bg);color:var(--yellow-text);font-weight:600;}
-  .posicion-ship-card{border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px;background:var(--dim-bg);position:relative;}
-  .posicion-ship-card .del-btn{position:absolute;top:10px;right:10px;}
-  .posicion-ship-nombre{font-size:15px;font-weight:700;border:1px solid transparent;background:transparent;padding:4px 6px;border-radius:6px;width:60%;color:var(--navy);}
-  .posicion-ship-nombre:hover, .posicion-ship-nombre:focus{border-color:var(--border);background:var(--card);}
-  .posicion-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:10px;}
-  .posicion-grid.wide{grid-template-columns:repeat(auto-fit,minmax(220px,1fr));}
-  .posicion-field{display:flex;flex-direction:column;gap:3px;}
-  .posicion-field label{font-size:10.5px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.02em;}
-  .posicion-field input, .posicion-field textarea{border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:12.5px;font-family:inherit;background:var(--card);color:var(--text);}
-  .posicion-field textarea{resize:vertical;min-height:34px;}
-  .posicion-bodegas{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:10px;}
-  .posicion-bodegas .posicion-field label{text-align:center;}
-  .posicion-bodegas .posicion-field input{text-align:center;}
   .checklist-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);}
   .checklist-item:last-child{border-bottom:none;}
   .checklist-item input[type=checkbox]{width:18px;height:18px;cursor:pointer;flex-shrink:0;}
@@ -176,19 +160,6 @@
   .checklist-item .extra-del-btn{background:none;border:none;color:var(--red-text);cursor:pointer;font-size:14px;flex-shrink:0;padding:2px 4px;}
   .cal-task{cursor:pointer;}
   .cal-task.done{background:var(--green-bg);color:var(--green-text);text-decoration:line-through;}
-  #posicionPrintArea{display:none;}
-  @media print{
-    body > *:not(#posicionPrintArea){display:none !important;}
-    #posicionPrintArea{display:block !important;}
-    .print-title{text-align:center;font-weight:700;font-size:16px;margin-bottom:2px;}
-    .print-date{text-align:center;font-size:12px;margin-bottom:14px;}
-    .print-unidad-title{background:#1F3864;color:#fff;padding:4px 8px;font-weight:700;font-size:13px;margin-top:14px;}
-    .print-obs-general{font-size:11px;font-weight:700;padding:4px 8px;background:#FFF3D6;}
-    table.print-table{width:100%;border-collapse:collapse;margin-bottom:6px;font-size:9.5px;}
-    table.print-table td, table.print-table th{border:1px solid #999;padding:3px 4px;vertical-align:top;}
-    table.print-table th{background:#EEE;text-align:left;}
-    table.print-table{page-break-inside:avoid;margin-bottom:10px;}
-  }
 </style>
 </head>
 <body>
@@ -219,7 +190,6 @@
     <div class="tab-btn active" data-tab="tareas">Tareas de hoy</div>
     <div class="tab-btn" data-tab="calendario">Calendario</div>
     <div class="tab-btn" data-tab="buque">Buque</div>
-    <div class="tab-btn" data-tab="posicion">Posición</div>
     <div class="tab-btn" data-tab="historial">Historial</div>
   </div>
 
@@ -254,14 +224,14 @@
         <thead>
           <tr>
             <th style="width:3%"></th>
-            <th style="width:10%">Área</th>
-            <th style="width:27%">Tarea</th>
-            <th style="width:13%">Frecuencia</th>
-            <th style="width:8%">Hora límite</th>
-            <th style="width:15%">Estado</th>
-            <th style="width:8%">Alerta</th>
-            <th style="width:7%">Responsable</th>
-            <th style="width:5%">Notas</th>
+            <th style="width:11%">Área</th>
+            <th style="width:30%">Tarea</th>
+            <th style="width:10%">Frecuencia</th>
+            <th style="width:7%">Hora límite</th>
+            <th style="width:10%">Estado</th>
+            <th style="width:7%">Alerta</th>
+            <th style="width:9%">Responsable</th>
+            <th style="width:11%">Notas</th>
             <th style="width:2%"></th>
           </tr>
         </thead>
@@ -314,37 +284,6 @@
     <div id="buqueEmpty" class="loading" style="display:none">No hay buques cargados. Agregá uno con el botón de arriba.</div>
     <div id="buqueList"></div>
   </div>
-
-  <!-- POSICIÓN DE BUQUES PANEL -->
-  <div class="panel" id="panel-posicion">
-    <div class="card row">
-      <div style="font-size:13px;color:var(--text-muted)">Posición de buques por unidad — para generar el reporte que se envía por mail.</div>
-      <div style="margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <button class="btn secondary" id="imprimirPosicionBtn">🖨️ Generar PDF</button>
-      </div>
-    </div>
-    <div id="posicionLoading" class="loading">Cargando posición de buques...</div>
-    <div id="posicionContent" style="display:none">
-      <div class="card posicion-unidad-card">
-        <div class="posicion-unidad-head">
-          <h3>UNIDAD 6</h3>
-          <button class="btn secondary" id="addBuquePosU6Btn">+ Agregar buque</button>
-        </div>
-        <input type="text" id="obsGeneralU6" class="notas posicion-obs-general" placeholder="Observación general de la unidad (ej: sin operar desde...)">
-        <div id="posicionListU6"></div>
-      </div>
-      <div class="card posicion-unidad-card">
-        <div class="posicion-unidad-head">
-          <h3>UNIDAD 7</h3>
-          <button class="btn secondary" id="addBuquePosU7Btn">+ Agregar buque</button>
-        </div>
-        <input type="text" id="obsGeneralU7" class="notas posicion-obs-general" placeholder="Observación general de la unidad">
-        <div id="posicionListU7"></div>
-      </div>
-    </div>
-  </div>
-
-  <div id="posicionPrintArea"></div>
 
   <!-- HISTORIAL PANEL -->
   <div class="panel" id="panel-historial">
@@ -1603,231 +1542,6 @@ function renderHistorial(){
   });
 }
 
-// ---- Posición de buques (reporte para enviar por mail) ----
-let posicionData = {u6: {obs: '', buques: []}, u7: {obs: '', buques: []}};
-
-function nuevoBuquePosicion(){
-  return {
-    id: uid(), nombre:'', estado:'', tipoOperacion:'Exportación', cantidad:'',
-    planoCarga:'', observaciones1:'', cargador:'', declaracion:'', mercaderia:'',
-    surveyor:'', agencia:'', destino:'', draft:'', fumiga:'', coordina:'',
-    eslora:'', manga:'', puntal:'', procedencia:'',
-    bodegas: ['','','','','','',''], observaciones2:''
-  };
-}
-
-function loadPosicion(){
-  let inicializando = false;
-  suscribirseADoc('posicion-buques', async (value) => {
-    if(value){
-      posicionData = JSON.parse(value);
-      if(!posicionData.u6) posicionData.u6 = {obs:'', buques:[]};
-      if(!posicionData.u7) posicionData.u7 = {obs:'', buques:[]};
-    } else if(!inicializando){
-      inicializando = true;
-      posicionData = {u6: {obs: '', buques: []}, u7: {obs: '', buques: []}};
-      try{ await window.storage.set('posicion-buques', JSON.stringify(posicionData)); }catch(e){}
-      return;
-    }
-    document.getElementById('posicionLoading').style.display = 'none';
-    document.getElementById('posicionContent').style.display = 'block';
-    renderPosicion();
-  });
-}
-
-async function savePosicion(){
-  try{
-    await window.storage.set('posicion-buques', JSON.stringify(posicionData), true);
-    flashSync(true);
-    return true;
-  }catch(e){
-    console.error('Error al guardar posición de buques', e);
-    flashSync(false);
-    return false;
-  }
-}
-
-const POSICION_CAMPOS = [
-  ['estado','Estado','text'], ['cantidad','Cantidad / Tonelaje','text'],
-  ['agencia','Agencia','text'], ['destino','Destino','text'],
-  ['surveyor','Surveyor','text'], ['procedencia','Procedencia','text'],
-  ['eslora','Eslora','text'], ['manga','Manga','text'], ['puntal','Puntal','text'],
-  ['draft','Draft','text'], ['fumiga','Fumiga','text'], ['coordina','Coordina','text'],
-];
-const POSICION_CAMPOS_LARGOS = [
-  ['planoCarga','Plano de carga'], ['cargador','Cargador/es'], ['declaracion','Declaración'],
-  ['mercaderia','Mercadería'], ['observaciones1','Observaciones'], ['observaciones2','Observaciones (2)']
-];
-
-function renderUnidadPosicion(unidadKey, listId){
-  const unidad = posicionData[unidadKey];
-  const list = document.getElementById(listId);
-  list.innerHTML = '';
-
-  unidad.buques.forEach(barco => {
-    const card = document.createElement('div');
-    card.className = 'posicion-ship-card';
-
-    const delBtn = document.createElement('button');
-    delBtn.className = 'del-btn'; delBtn.textContent = '✕'; delBtn.title = 'Eliminar buque';
-    delBtn.addEventListener('click', () => {
-      if(!confirm('¿Eliminar este buque de la posición?')) return;
-      unidad.buques = unidad.buques.filter(x => x.id !== barco.id);
-      savePosicion();
-      renderPosicion();
-    });
-    card.appendChild(delBtn);
-
-    const nombreInput = document.createElement('input');
-    nombreInput.className = 'posicion-ship-nombre';
-    nombreInput.type = 'text'; nombreInput.placeholder = 'Nombre del buque';
-    nombreInput.value = barco.nombre || '';
-    nombreInput.addEventListener('change', () => { barco.nombre = nombreInput.value; savePosicion(); });
-    card.appendChild(nombreInput);
-
-    const tipoSelect = document.createElement('select');
-    tipoSelect.style.marginLeft = '10px';
-    ['Exportación','Importación'].forEach(op => {
-      const opt = document.createElement('option'); opt.value = op; opt.textContent = op;
-      if(barco.tipoOperacion === op) opt.selected = true;
-      tipoSelect.appendChild(opt);
-    });
-    tipoSelect.addEventListener('change', () => { barco.tipoOperacion = tipoSelect.value; savePosicion(); });
-    card.appendChild(tipoSelect);
-
-    const grid = document.createElement('div');
-    grid.className = 'posicion-grid';
-    POSICION_CAMPOS.forEach(([key, label]) => {
-      const field = document.createElement('div');
-      field.className = 'posicion-field';
-      const lbl = document.createElement('label'); lbl.textContent = label;
-      const input = document.createElement('input');
-      input.type = 'text'; input.value = barco[key] || '';
-      input.addEventListener('change', () => { barco[key] = input.value; savePosicion(); });
-      field.appendChild(lbl); field.appendChild(input);
-      grid.appendChild(field);
-    });
-    card.appendChild(grid);
-
-    const gridLargo = document.createElement('div');
-    gridLargo.className = 'posicion-grid wide';
-    POSICION_CAMPOS_LARGOS.forEach(([key, label]) => {
-      const field = document.createElement('div');
-      field.className = 'posicion-field';
-      const lbl = document.createElement('label'); lbl.textContent = label;
-      const textarea = document.createElement('textarea');
-      textarea.value = barco[key] || '';
-      textarea.addEventListener('change', () => { barco[key] = textarea.value; savePosicion(); });
-      field.appendChild(lbl); field.appendChild(textarea);
-      gridLargo.appendChild(field);
-    });
-    card.appendChild(gridLargo);
-
-    const bodegasWrap = document.createElement('div');
-    bodegasWrap.className = 'posicion-bodegas';
-    for(let i = 0; i < 7; i++){
-      const field = document.createElement('div');
-      field.className = 'posicion-field';
-      const lbl = document.createElement('label'); lbl.textContent = '#' + (i+1);
-      const input = document.createElement('input');
-      input.type = 'text'; input.value = barco.bodegas[i] || '';
-      input.addEventListener('change', () => { barco.bodegas[i] = input.value; savePosicion(); });
-      field.appendChild(lbl); field.appendChild(input);
-      bodegasWrap.appendChild(field);
-    }
-    card.appendChild(bodegasWrap);
-
-    list.appendChild(card);
-  });
-}
-
-function renderPosicion(){
-  document.getElementById('obsGeneralU6').value = posicionData.u6.obs || '';
-  document.getElementById('obsGeneralU7').value = posicionData.u7.obs || '';
-  renderUnidadPosicion('u6', 'posicionListU6');
-  renderUnidadPosicion('u7', 'posicionListU7');
-}
-
-document.getElementById('addBuquePosU6Btn').addEventListener('click', () => {
-  posicionData.u6.buques.push(nuevoBuquePosicion());
-  savePosicion();
-  renderPosicion();
-});
-document.getElementById('addBuquePosU7Btn').addEventListener('click', () => {
-  posicionData.u7.buques.push(nuevoBuquePosicion());
-  savePosicion();
-  renderPosicion();
-});
-document.getElementById('obsGeneralU6').addEventListener('change', (e) => {
-  posicionData.u6.obs = e.target.value; savePosicion();
-});
-document.getElementById('obsGeneralU7').addEventListener('change', (e) => {
-  posicionData.u7.obs = e.target.value; savePosicion();
-});
-
-function esc(v){ return v ? String(v).replace(/</g,'&lt;').replace(/\n/g,'<br>') : ''; }
-
-function tablaPrintBarco(barco){
-  const bodegasFila = barco.bodegas.map((v,i) => '#' + (i+1) + ': ' + (v || '-')).join('&nbsp;&nbsp;|&nbsp;&nbsp;');
-  const tipo = barco.tipoOperacion || 'Exportación';
-  let html = '<table class="print-table">';
-  html += '<tr>';
-  html += '<th style="width:9%">Buque</th><td style="width:13%">' + esc(barco.nombre) + '</td>';
-  html += '<th style="width:8%">Estado</th><td style="width:13%">' + esc(barco.estado) + '</td>';
-  html += '<th style="width:9%">' + esc(tipo) + '</th><td style="width:10%">' + esc(barco.cantidad) + '</td>';
-  html += '<th rowspan="4" style="width:9%;vertical-align:top">Observaciones</th>';
-  html += '<td rowspan="4" style="width:15%;vertical-align:top;font-size:9px">';
-  html += 'DRAFT: ' + esc(barco.draft) + '<br>';
-  html += 'Fumiga: ' + esc(barco.fumiga) + '<br>';
-  html += 'Coordina: ' + esc(barco.coordina);
-  if(barco.observaciones2) html += '<br>' + esc(barco.observaciones2);
-  html += '</td>';
-  html += '</tr>';
-
-  html += '<tr><th>Plano de carga</th><td colspan="3">' + esc(barco.planoCarga) + '</td>';
-  html += '<th>Cargador/es</th><td colspan="1">' + esc(barco.cargador) + '</td></tr>';
-
-  html += '<tr><th>Declaración</th><td colspan="3">' + esc(barco.declaracion) + '</td>';
-  html += '<th>Mercadería</th><td>' + esc(barco.mercaderia) + '</td></tr>';
-
-  html += '<tr><th>Surveyor</th><td>' + esc(barco.surveyor) + '</td>';
-  html += '<th>Agencia</th><td>' + esc(barco.agencia) + '</td>';
-  html += '<th>Destino</th><td>' + esc(barco.destino) + '</td></tr>';
-
-  html += '<tr><th>Eslora / Manga / Puntal</th><td>' + esc(barco.eslora) + ' / ' + esc(barco.manga) + ' / ' + esc(barco.puntal) + '</td>';
-  html += '<th>Proc.</th><td colspan="3">' + esc(barco.procedencia) + '</td>';
-  html += '<th>Bodegas 1-7</th><td>' + bodegasFila + '</td></tr>';
-
-  if(barco.observaciones1){
-    html += '<tr><th>Observaciones</th><td colspan="7">' + esc(barco.observaciones1) + '</td></tr>';
-  }
-
-  html += '</table>';
-  return html;
-}
-
-function imprimirPosicion(){
-  const hoy = new Date();
-  const fechaTexto = hoy.toLocaleDateString('es-AR', {day:'2-digit', month:'2-digit', year:'numeric'});
-  let html = '<div class="print-title">POSICIÓN DE BUQUES &nbsp; SPSA ROSARIO</div>';
-  html += '<div class="print-date">' + fechaTexto + '</div>';
-
-  html += '<div class="print-unidad-title">UNIDAD 6</div>';
-  if(posicionData.u6.obs) html += '<div class="print-obs-general">' + posicionData.u6.obs.replace(/</g,'&lt;') + '</div>';
-  if(posicionData.u6.buques.length === 0) html += '<div style="font-size:11px;padding:6px 0;">Sin buques cargados.</div>';
-  posicionData.u6.buques.forEach(b => { html += tablaPrintBarco(b); });
-
-  html += '<div class="print-unidad-title">UNIDAD 7</div>';
-  if(posicionData.u7.obs) html += '<div class="print-obs-general">' + posicionData.u7.obs.replace(/</g,'&lt;') + '</div>';
-  if(posicionData.u7.buques.length === 0) html += '<div style="font-size:11px;padding:6px 0;">Sin buques cargados.</div>';
-  posicionData.u7.buques.forEach(b => { html += tablaPrintBarco(b); });
-
-  document.getElementById('posicionPrintArea').innerHTML = html;
-  window.print();
-}
-
-document.getElementById('imprimirPosicionBtn').addEventListener('click', imprimirPosicion);
-
 
 function loadSidebarInfo(){
   let inicializando = false;
@@ -1889,8 +1603,7 @@ document.getElementById('guardarTodoBtn').addEventListener('click', async () => 
   const r1 = await saveTareas();
   const r2 = await saveVenc();
   const r3 = await saveHistorial();
-  const r4 = await savePosicion();
-  if(r1 && r2 && r3 && r4){
+  if(r1 && r2 && r3){
     flashSync(true);
   } else {
     flashSync(false);
@@ -1907,7 +1620,6 @@ document.getElementById('guardarTodoBtn').addEventListener('click', async () => 
   loadVenc();
   loadHistorial();
   loadBuques();
-  loadPosicion();
   loadSidebarInfo();
   actualizarNotifBtn();
   setInterval(renderTareas, 60000);
