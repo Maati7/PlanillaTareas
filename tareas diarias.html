@@ -174,7 +174,7 @@
   <div class="login-card">
     <h2>Lista de tareas diarias</h2>
     <p>Iniciá sesión para continuar</p>
-    <input type="email" id="loginEmail" placeholder="Email" autocomplete="username">
+    <input type="text" id="loginEmail" placeholder="Usuario" autocomplete="username" autocapitalize="none">
     <input type="password" id="loginPassword" placeholder="Contraseña" autocomplete="current-password">
     <button class="btn" id="loginBtn" style="width:100%">Ingresar</button>
     <div id="loginError" class="login-error"></div>
@@ -1655,7 +1655,7 @@ auth.onAuthStateChanged(user => {
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('appWrap').style.display = 'block';
     const userBadge = document.getElementById('userBadge');
-    userBadge.textContent = user.email;
+    userBadge.textContent = user.email.split('@')[0];
     userBadge.style.display = 'inline-flex';
     document.getElementById('logoutBtn').style.display = 'inline-block';
     initApp();
@@ -1666,17 +1666,18 @@ auth.onAuthStateChanged(user => {
 });
 
 document.getElementById('loginBtn').addEventListener('click', () => {
-  const email = document.getElementById('loginEmail').value.trim();
+  let usuario = document.getElementById('loginEmail').value.trim().toLowerCase();
   const password = document.getElementById('loginPassword').value;
   const errorBox = document.getElementById('loginError');
   errorBox.textContent = '';
-  if(!email || !password){
-    errorBox.textContent = 'Completá email y contraseña.';
+  if(!usuario || !password){
+    errorBox.textContent = 'Completá usuario y contraseña.';
     return;
   }
+  const email = usuario.includes('@') ? usuario : usuario + '@gmail.com';
   auth.signInWithEmailAndPassword(email, password).catch(err => {
-    if(err.code === 'auth/invalid-email') errorBox.textContent = 'El email no es válido.';
-    else if(err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') errorBox.textContent = 'Email o contraseña incorrectos.';
+    if(err.code === 'auth/invalid-email') errorBox.textContent = 'El usuario no es válido.';
+    else if(err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') errorBox.textContent = 'Usuario o contraseña incorrectos.';
     else errorBox.textContent = 'No se pudo iniciar sesión. Intentá de nuevo.';
   });
 });
