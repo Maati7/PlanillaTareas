@@ -799,8 +799,12 @@ function guardarColapso(){
   try{ localStorage.setItem('tdp_buques_colapsados', JSON.stringify([...buquesColapsados])); }catch(e){}
 }
 
+let ultimoBuquesLocal = null;
+let buquesSaveTimer = null;
+
 function loadBuques(){
   suscribirseADoc('buques', (value) => {
+    if(value === ultimoBuquesLocal) return; // es el eco de nuestro propio guardado, no hace falta repintar
     buques = value ? JSON.parse(value) : [];
     document.getElementById('buqueLoading').style.display = 'none';
     renderBuques();
@@ -809,8 +813,10 @@ function loadBuques(){
 
 async function saveBuques(){
   sinGuardar = true;
+  const payload = JSON.stringify(buques);
+  ultimoBuquesLocal = payload;
   try{
-    await window.storage.set('buques', JSON.stringify(buques), true);
+    await window.storage.set('buques', payload, true);
     flashSync(true);
     return true;
   }catch(e){
@@ -818,6 +824,13 @@ async function saveBuques(){
     flashSync(false);
     return false;
   }
+}
+
+// Agrupa tildes/ediciones rápidas en un solo guardado, en vez de uno por cada click
+function saveBuquesDebounced(){
+  sinGuardar = true;
+  if(buquesSaveTimer) clearTimeout(buquesSaveTimer);
+  buquesSaveTimer = setTimeout(() => { saveBuques(); }, 700);
 }
 
 function renderBuques(){
@@ -850,9 +863,13 @@ function renderBuques(){
     if(sincronizarOrdenItems(b)) huboMigracion = true;
     const card = document.createElement('div');
     const itemsFijosVisibles = BUQUE_ITEMS.filter(it => !b.itemsOcultos.includes(it.key));
-    const totalItems = itemsFijosVisibles.length + b.itemsExtra.length;
-    const hechos = itemsFijosVisibles.filter(it => b.items[it.key] && b.items[it.key].recibido).length
-      + b.itemsExtra.filter(it => it.recibido).length;
+    function recalcularProgreso(){
+      const total = itemsFijosVisibles.length + b.itemsExtra.length;
+      const hechosAhora = itemsFijosVisibles.filter(it => b.items[it.key] && b.items[it.key].recibido).length
+        + b.itemsExtra.filter(it => it.recibido).length;
+      return {total, hechosAhora};
+    }
+    const {total: totalItems, hechosAhora: hechos} = recalcularProgreso();
     const zarpoItem = b.items['zarpo'];
     const atrasado = !!(zarpoItem && zarpoItem.recibido && hechos < totalItems);
     card.className = 'buque-card' + (atrasado ? ' atrasado' : '');
@@ -965,8 +982,11 @@ function renderBuques(){
             const extra = b.itemsExtra.find(x => x.id === it.id);
             if(extra) extra.recibido = check.checked;
           }
-          saveBuques();
-          renderBuques();
+          row.classList.toggle('done', check.checked);
+          const {total, hechosAhora} = recalcularProgreso();
+          prog.textContent = hechosAhora + ' de ' + total + ' completo';
+          prog.classList.toggle('completo', hechosAhora === total);
+          saveBuquesDebounced();
         });
 
         const label = document.createElement('label');
