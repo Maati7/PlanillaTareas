@@ -800,6 +800,7 @@ function guardarColapso(){
 }
 
 let ultimoBuquesLocal = null;
+let migracionBuquesGuardadaEnSesion = false; // corta cualquier bucle de guardado automático: solo 1 vez por carga de página
 let buquesSaveTimer = null;
 
 function loadBuques(){
@@ -860,6 +861,10 @@ function renderBuques(){
   buquesFiltrados.forEach(b => {
     if(!b.itemsExtra) b.itemsExtra = [];
     if(!b.itemsOcultos) { b.itemsOcultos = []; huboMigracion = true; }
+    if(!b.items) b.items = {};
+    BUQUE_ITEMS.forEach(it => {
+      if(!b.items[it.key]){ b.items[it.key] = {texto:'', recibido:false}; huboMigracion = true; }
+    });
     if(sincronizarOrdenItems(b)) huboMigracion = true;
     const card = document.createElement('div');
     const itemsFijosVisibles = BUQUE_ITEMS.filter(it => !b.itemsOcultos.includes(it.key));
@@ -981,6 +986,7 @@ function renderBuques(){
         check.checked = it.recibido;
         check.addEventListener('change', () => {
           if(it.tipo === 'fijo'){
+            if(!b.items[it.id]) b.items[it.id] = {texto:'', recibido:false};
             b.items[it.id].recibido = check.checked;
           } else {
             const extra = b.itemsExtra.find(x => x.id === it.id);
@@ -1003,6 +1009,7 @@ function renderBuques(){
         texto.value = it.texto;
         texto.addEventListener('change', () => {
           if(it.tipo === 'fijo'){
+            if(!b.items[it.id]) b.items[it.id] = {texto:'', recibido:false};
             b.items[it.id].texto = texto.value;
           } else {
             const extra = b.itemsExtra.find(x => x.id === it.id);
@@ -1108,7 +1115,10 @@ function renderBuques(){
     list.appendChild(card);
   });
 
-  if(huboMigracion) saveBuques();
+  if(huboMigracion && !migracionBuquesGuardadaEnSesion){
+    migracionBuquesGuardadaEnSesion = true;
+    saveBuques();
+  }
 }
 
 document.getElementById('buqueSearchInput').addEventListener('input', renderBuques);
