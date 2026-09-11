@@ -944,7 +944,7 @@ function renderBuques(){
       itemsOrdenados.forEach((it, idx) => {
         const row = document.createElement('div');
         row.className = 'checklist-item' + (it.recibido ? ' done' : '');
-        row.draggable = false;
+        row.draggable = true;
 
         row.addEventListener('dragstart', () => {
           dragState = {buqueId: b.id, itemId: it.id};
@@ -976,10 +976,6 @@ function renderBuques(){
         dragHandle.className = 'drag-handle';
         dragHandle.textContent = '⠿';
         dragHandle.title = 'Arrastrar para reordenar';
-        dragHandle.addEventListener('mousedown', () => { row.draggable = true; });
-        dragHandle.addEventListener('touchstart', () => { row.draggable = true; });
-        row.addEventListener('mouseup', () => { row.draggable = false; });
-        row.addEventListener('dragend', () => { row.draggable = false; });
 
         const check = document.createElement('input');
         check.type = 'checkbox';
