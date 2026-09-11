@@ -158,6 +158,10 @@
   .checklist-item input[type=text]{flex:1;font-size:13px;}
   .checklist-item.done label.item-label{color:var(--green-text);}
   .checklist-item .extra-del-btn{background:none;border:none;color:var(--red-text);cursor:pointer;font-size:14px;flex-shrink:0;padding:2px 4px;}
+  .buque-restore-wrap{margin-top:10px;}
+  .buque-restore-toggle{background:none;border:none;color:var(--text-muted);font-size:11px;cursor:pointer;text-decoration:underline;padding:2px 0;}
+  .buque-restore-list{margin-top:6px;padding:8px 10px;background:var(--gray-bg);border-radius:8px;}
+  .buque-restore-line{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12px;padding:4px 0;}
   .cal-task{cursor:pointer;}
   .cal-task.done{background:var(--green-bg);color:var(--green-text);text-decoration:line-through;}
 </style>
@@ -650,20 +654,54 @@ async function saveHistorial(){
 }
 
 const BUQUE_ITEMS = [
-  {key:'subida', label:'Subida', group:'Trámites'},
-  {key:'requerimientos', label:'Requerimientos', group:'Trámites'},
-  {key:'previa', label:'Previa', group:'Trámites'},
-  {key:'definitiva', label:'Definitiva', group:'Trámites'},
-  {key:'giroAtraque', label:'Giro de atraque', group:'Trámites'},
-  {key:'facturacion', label:'Facturación', group:'Trámites'},
-  {key:'bajaArca', label:'Baja ARCA', group:'Trámites'},
-  {key:'notaEnapro', label:'Nota ENAPRO', group:'Trámites'},
-  {key:'detalleBuque', label:'Detalle de buque', group:'Trámites'},
-  {key:'listadoBuque', label:'Listado de buque', group:'Trámites'},
+  {key:'nominacion', label:'Nominación del buque por exportador', group:'Trámites'},
+  {key:'lineUp', label:'Line up', group:'Trámites'},
+  {key:'posicionBuques', label:'Posición de buques', group:'Trámites'},
+  {key:'solicitarSubidaAgencia', label:'Solicitar subida a agencia', group:'Trámites'},
+  {key:'subidaExportadorConformidad', label:'Subida a exportador pidiendo conformidad', group:'Trámites'},
+  {key:'subidaConfirmadaFirmar', label:'Subida confirmada, llenarla y firmarla', group:'Trámites'},
+  {key:'subidaFirmadaPrefectura', label:'Subida firmada a Prefectura (CC agencia-cliente-puerto)', group:'Trámites'},
+  {key:'carpetaAdministracion', label:'Carpeta de buque de administración', group:'Trámites'},
+  {key:'carpetaPorteria', label:'Carpeta de buque para portería principal', group:'Trámites'},
+  {key:'requerimientosAgencia', label:'Requerimientos a agencia (completos)', group:'Trámites'},
+  {key:'datosBuqueCliente', label:'Datos de buque al cliente', group:'Trámites'},
+  {key:'requerimientosCoordinacion', label:'Requerimientos a coordinación', group:'Trámites'},
+  {key:'solicitarPermisosEmbarque', label:'Solicitar permisos de embarque a cliente', group:'Trámites'},
+  {key:'ordenPermisos', label:'Orden de los permisos (varios clientes o producto)', group:'Trámites'},
+  {key:'armarPrevia', label:'Armar previa y pasar al cliente', group:'Trámites'},
+  {key:'enviarPreviaAduana', label:'Enviar previa a aduana + nota de comunicación de buque', group:'Trámites'},
+  {key:'enviarPermisosCoordSP', label:'Enviar permisos de embarques a coordinación y SP', group:'Trámites'},
+  {key:'habilitacionSenasa', label:'Solicitar habilitación SENASA al cliente (fitosanitarios)', group:'Trámites'},
+  {key:'habilitacionAduanaComienzo', label:'Solicitar habilitación aduana al cliente para el comienzo', group:'Trámites'},
+  {key:'habilitacionAduanaInhabiles', label:'Solicitar habilitación aduana al cliente horarios inhábiles', group:'Trámites'},
+  {key:'enviarHabilitacionCoordSP', label:'Enviar habilitación aduana y SENASA a coordinación y SP', group:'Trámites'},
+  {key:'mailInspeccionBodegas', label:'Enviar mail inspección de bodegas + horario de prácticos', group:'Trámites'},
+  {key:'giroAtraque', label:'Completar el giro de atraque', group:'Trámites'},
+  {key:'enviarGiroAtraque', label:'Enviar giro de atraque a contrase, agencias y terminal', group:'Trámites'},
+  {key:'mailPermisoBitas', label:'Enviar mail permiso bitas (si va a unidad 6)', group:'Trámites'},
+  {key:'consultarSenasaSupervision', label:'Consultar a SENASA si realiza supervisión', group:'Trámites'},
+  {key:'mailOperatividad', label:'Enviar mail / WSP por operatividad del buque', group:'Trámites'},
+  {key:'certificadoLibrePlatica', label:'Solicitar certificado de libre plática', group:'Trámites'},
+  {key:'norConHorarios', label:'Solicitar NOR con horarios', group:'Trámites'},
+  {key:'certificadoBodegas', label:'Solicitar certificado de bodegas', group:'Trámites'},
+  {key:'ingresarSistemaPuerto', label:'Ingresar en sistema puerto el buque', group:'Trámites'},
+  {key:'consultarOperatoriaDiaria', label:'Diariamente consultar la operatoria al cliente e informar', group:'Trámites'},
+  {key:'fitosanitariosSubsiguiente', label:'Solicitar fitosanitarios para día subsiguiente e informar', group:'Trámites'},
+  {key:'cumplidosExportador', label:'Solicitar cumplidos al exportador de permisos de embarques', group:'Trámites'},
+  {key:'realizarDefinitiva', label:'Realizar definitiva y enviar al exportador por el OK', group:'Trámites'},
+  {key:'definitivaOkAduana', label:'Definitiva OK, enviar a aduana + nota balanza (ticket 0 y kg de balanzas)', group:'Trámites'},
+  {key:'facturarBuque', label:'Facturar buque', group:'Trámites'},
+  {key:'bajaArca', label:'Baja ARCA con info de cumplidos', group:'Trámites'},
+  {key:'listadoBuqueLibroemb', label:'Completar listado de buque (LIBROEMB)', group:'Trámites'},
+  {key:'esperarDetalleBuqueSP', label:'Esperar detalle de buque de SP', group:'Trámites'},
+  {key:'notaEnapro', label:'Enviar estadía de buque al ENAPRO con las horas de SP', group:'Trámites'},
+  {key:'detalleBuqueMrJf', label:'Completar el detalle de buque para MR y JF Bs. As.', group:'Trámites'},
+  {key:'romaneoEmbarque', label:'Romaneo de embarque (Aduana, SENASA, Terminal)', group:'Trámites'},
+  {key:'kgBalanzas', label:'Kg de balanzas (Aduana y Terminal)', group:'Trámites'},
+  {key:'pesadasBalanzas', label:'Pesadas de balanzas - Terminal (carpeta del buque)', group:'Trámites'},
+  {key:'correosCoordinacionEmbarque', label:'Imprimir correos de coordinación de embarque', group:'Trámites'},
   {key:'ministerioTransporte', label:'Ministerio Transporte', group:'Trámites'},
-  {key:'permisoEmbarque', label:'Permiso de embarque', group:'Trámites'},
   {key:'usoMuelle', label:'Uso de muelle', group:'Trámites'},
-  {key:'operatividad', label:'Operatividad', group:'Trámites'},
   {key:'draftSurvey', label:'Draft survey', group:'Trámites'},
   {key:'control', label:'Control', group:'Trámites'},
   {key:'fumigacion', label:'Fumigación', group:'Trámites'},
@@ -693,15 +731,17 @@ const BUQUE_ITEMS = [
 // Orden de ítems por buque (combina fijos + extra, mezclables libremente, se guarda con cada buque)
 function sincronizarOrdenItems(b){
   if(!b.ordenItems) b.ordenItems = [];
+  if(!b.itemsOcultos) b.itemsOcultos = [];
   const idsFijos = BUQUE_ITEMS.map(it => it.key);
   const idsExtra = (b.itemsExtra||[]).map(it => it.id);
+  const idsOcultos = new Set(b.itemsOcultos);
   const idsValidos = new Set([...idsFijos, ...idsExtra]);
   let cambiado = false;
 
-  const filtrado = b.ordenItems.filter(id => idsValidos.has(id));
+  const filtrado = b.ordenItems.filter(id => idsValidos.has(id) && !idsOcultos.has(id));
   if(filtrado.length !== b.ordenItems.length){ b.ordenItems = filtrado; cambiado = true; }
 
-  idsFijos.forEach(k => { if(!b.ordenItems.includes(k)){ b.ordenItems.push(k); cambiado = true; } });
+  idsFijos.forEach(k => { if(!idsOcultos.has(k) && !b.ordenItems.includes(k)){ b.ordenItems.push(k); cambiado = true; } });
   idsExtra.forEach(k => { if(!b.ordenItems.includes(k)){ b.ordenItems.push(k); cambiado = true; } });
 
   return cambiado;
@@ -744,7 +784,7 @@ function nuevoBuqueVacio(){
   const items = {};
   BUQUE_ITEMS.forEach(it => { items[it.key] = {texto:'', recibido:false}; });
   const ordenItems = BUQUE_ITEMS.map(it => it.key);
-  return {id: uid(), numero:'', nombre:'', unidad:'', exportador:'', mercaderia:'', agenciaMaritima:'', destino:'', items, itemsExtra:[], ordenItems, fecha: new Date().toISOString()};
+  return {id: uid(), numero:'', nombre:'', unidad:'', exportador:'', mercaderia:'', agenciaMaritima:'', destino:'', items, itemsExtra:[], itemsOcultos:[], ordenItems, fecha: new Date().toISOString()};
 }
 
 // Estado de tarjetas colapsadas (preferencia visual local, no se sincroniza entre PCs)
@@ -804,10 +844,12 @@ function renderBuques(){
   let huboMigracion = false;
   buquesFiltrados.forEach(b => {
     if(!b.itemsExtra) b.itemsExtra = [];
+    if(!b.itemsOcultos) { b.itemsOcultos = []; huboMigracion = true; }
     if(sincronizarOrdenItems(b)) huboMigracion = true;
     const card = document.createElement('div');
-    const totalItems = BUQUE_ITEMS.length + b.itemsExtra.length;
-    const hechos = BUQUE_ITEMS.filter(it => b.items[it.key] && b.items[it.key].recibido).length
+    const itemsFijosVisibles = BUQUE_ITEMS.filter(it => !b.itemsOcultos.includes(it.key));
+    const totalItems = itemsFijosVisibles.length + b.itemsExtra.length;
+    const hechos = itemsFijosVisibles.filter(it => b.items[it.key] && b.items[it.key].recibido).length
       + b.itemsExtra.filter(it => it.recibido).length;
     const zarpoItem = b.items['zarpo'];
     const atrasado = !!(zarpoItem && zarpoItem.recibido && hechos < totalItems);
@@ -964,10 +1006,67 @@ function renderBuques(){
             renderBuques();
           });
           row.appendChild(delItemBtn);
+        } else {
+          const hideItemBtn = document.createElement('button');
+          hideItemBtn.className = 'extra-del-btn';
+          hideItemBtn.textContent = '✕';
+          hideItemBtn.title = 'Ocultar ítem en este buque (no aplica)';
+          hideItemBtn.addEventListener('click', () => {
+            if(!b.itemsOcultos) b.itemsOcultos = [];
+            b.itemsOcultos.push(it.id);
+            sincronizarOrdenItems(b);
+            saveBuques();
+            renderBuques();
+          });
+          row.appendChild(hideItemBtn);
         }
 
         card.appendChild(row);
       });
+
+      if((b.itemsOcultos||[]).length > 0){
+        const restoreWrap = document.createElement('div');
+        restoreWrap.className = 'buque-restore-wrap';
+        const restoreToggle = document.createElement('button');
+        restoreToggle.className = 'buque-restore-toggle';
+        restoreToggle.textContent = 'Mostrar ítems ocultos (' + b.itemsOcultos.length + ')';
+        const restoreList = document.createElement('div');
+        restoreList.className = 'buque-restore-list';
+        restoreList.style.display = 'none';
+
+        const porKeyFijo = {};
+        BUQUE_ITEMS.forEach(x => { porKeyFijo[x.key] = x; });
+        b.itemsOcultos.forEach(key => {
+          const def = porKeyFijo[key];
+          if(!def) return;
+          const line = document.createElement('div');
+          line.className = 'buque-restore-line';
+          const lbl = document.createElement('span');
+          lbl.textContent = def.label;
+          const restoreBtn = document.createElement('button');
+          restoreBtn.className = 'btn secondary';
+          restoreBtn.style.fontSize = '11px';
+          restoreBtn.style.padding = '3px 10px';
+          restoreBtn.textContent = '+ Restaurar';
+          restoreBtn.addEventListener('click', () => {
+            b.itemsOcultos = b.itemsOcultos.filter(k => k !== key);
+            sincronizarOrdenItems(b);
+            saveBuques();
+            renderBuques();
+          });
+          line.appendChild(lbl);
+          line.appendChild(restoreBtn);
+          restoreList.appendChild(line);
+        });
+
+        restoreToggle.addEventListener('click', () => {
+          restoreList.style.display = restoreList.style.display === 'none' ? 'block' : 'none';
+        });
+
+        restoreWrap.appendChild(restoreToggle);
+        restoreWrap.appendChild(restoreList);
+        card.appendChild(restoreWrap);
+      }
 
       const addItemBtn = document.createElement('button');
       addItemBtn.className = 'buque-add-item-btn';
