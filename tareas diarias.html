@@ -149,6 +149,9 @@
   .buque-progress{font-size:12px;font-weight:700;padding:4px 10px;border-radius:20px;background:var(--blue-light);color:var(--accent-text);}
   .buque-progress.completo{background:var(--green-bg);color:var(--green-text);}
   .buque-card.atrasado{border-color:var(--red-text);border-width:2px;}
+  .buque-card.dragging{opacity:0.4;}
+  .buque-card.drag-over{box-shadow:inset 0 2px 0 var(--blue);}
+  .buque-card-archivado{opacity:0.75;}
   .buque-atrasado-tag{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;background:var(--red-bg);color:var(--red-text);margin-top:6px;display:inline-block;}
   .buque-collapse-btn{background:none;border:none;cursor:pointer;font-size:16px;color:var(--text-muted);padding:2px 6px;flex-shrink:0;}
   .buque-add-item-btn{background:none;border:1px dashed var(--border);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;color:var(--blue);cursor:pointer;margin-top:10px;}
@@ -289,6 +292,11 @@
     <div id="buqueLoading" class="loading">Cargando buques...</div>
     <div id="buqueEmpty" class="loading" style="display:none">No hay buques cargados. Agregá uno con el botón de arriba.</div>
     <div id="buqueList"></div>
+
+    <div id="buqueArchivadosSection" style="display:none;margin-top:8px;">
+      <button class="buque-restore-toggle" id="toggleArchivadosBtn" style="font-size:13px;font-weight:600;"></button>
+      <div id="buqueArchivadosList" style="display:none;margin-top:10px;"></div>
+    </div>
   </div>
 
   <!-- HISTORIAL PANEL -->
@@ -786,7 +794,7 @@ function nuevoBuqueVacio(){
   const items = {};
   BUQUE_ITEMS.forEach(it => { items[it.key] = {texto:'', recibido:false}; });
   const ordenItems = BUQUE_ITEMS.map(it => it.key);
-  return {id: uid(), numero:'', nombre:'', unidad:'', exportador:'', mercaderia:'', agenciaMaritima:'', destino:'', items, itemsExtra:[], itemsOcultos:[], ordenItems, fecha: new Date().toISOString()};
+  return {id: uid(), numero:'', nombre:'', unidad:'', exportador:'', mercaderia:'', agenciaMaritima:'', destino:'', items, itemsExtra:[], itemsOcultos:[], ordenItems, archivado:false, fecha: new Date().toISOString()};
 }
 
 // Estado de tarjetas colapsadas (preferencia visual local, no se sincroniza entre PCs)
@@ -797,6 +805,24 @@ try{
 }catch(e){}
 function guardarColapso(){
   try{ localStorage.setItem('tdp_buques_colapsados', JSON.stringify([...buquesColapsados])); }catch(e){}
+}
+
+let archivadosColapsado = true;
+try{
+  const savedArchColapso = localStorage.getItem('tdp_archivados_colapsado');
+  if(savedArchColapso !== null) archivadosColapsado = savedArchColapso === '1';
+}catch(e){}
+
+let dragStateBuque = null; // {buqueId} — buque que se está arrastrando para reordenar la lista
+
+function reordenarBuque(dragId, targetId, insertAfter){
+  const fromIdx = buques.findIndex(x => x.id === dragId);
+  if(fromIdx === -1 || dragId === targetId) return;
+  const [item] = buques.splice(fromIdx, 1);
+  let toIdx = buques.findIndex(x => x.id === targetId);
+  if(toIdx === -1){ buques.splice(fromIdx, 0, item); return; }
+  if(insertAfter) toIdx += 1;
+  buques.splice(toIdx, 0, item);
 }
 
 let ultimoBuquesLocal = null;
@@ -837,11 +863,16 @@ function saveBuquesDebounced(){
 function renderBuques(){
   const list = document.getElementById('buqueList');
   const empty = document.getElementById('buqueEmpty');
+  const archSection = document.getElementById('buqueArchivadosSection');
+  const archToggle = document.getElementById('toggleArchivadosBtn');
+  const archList = document.getElementById('buqueArchivadosList');
   list.innerHTML = '';
+  archList.innerHTML = '';
 
   if(buques.length === 0){
     empty.textContent = 'No hay buques cargados. Agregá uno con el botón de arriba.';
     empty.style.display = 'block';
+    archSection.style.display = 'none';
     return;
   }
 
@@ -853,6 +884,7 @@ function renderBuques(){
   if(buquesFiltrados.length === 0){
     empty.textContent = 'No se encontraron buques para "' + query + '".';
     empty.style.display = 'block';
+    archSection.style.display = 'none';
     return;
   }
   empty.style.display = 'none';
@@ -861,11 +893,40 @@ function renderBuques(){
   buquesFiltrados.forEach(b => {
     if(!b.itemsExtra) b.itemsExtra = [];
     if(!b.itemsOcultos) { b.itemsOcultos = []; huboMigracion = true; }
+    if(b.archivado === undefined) { b.archivado = false; huboMigracion = true; }
     if(!b.items) b.items = {};
     BUQUE_ITEMS.forEach(it => {
       if(!b.items[it.key]){ b.items[it.key] = {texto:'', recibido:false}; huboMigracion = true; }
     });
     if(sincronizarOrdenItems(b)) huboMigracion = true;
+  });
+
+  const activos = buquesFiltrados.filter(b => !b.archivado);
+  const archivados = buquesFiltrados.filter(b => b.archivado);
+
+  if(activos.length === 0){
+    empty.textContent = query ? ('No se encontraron buques activos para "' + query + '".') : 'No hay buques activos. Agregá uno con el botón de arriba.';
+    empty.style.display = 'block';
+  }
+
+  activos.forEach(b => { list.appendChild(construirTarjetaBuque(b, false)); });
+
+  if(archivados.length > 0){
+    archSection.style.display = 'block';
+    archToggle.textContent = (archivadosColapsado ? '▸' : '▾') + ' Buques finalizados (' + archivados.length + ')';
+    archList.style.display = archivadosColapsado ? 'none' : 'block';
+    archivados.forEach(b => { archList.appendChild(construirTarjetaBuque(b, true)); });
+  } else {
+    archSection.style.display = 'none';
+  }
+
+  if(huboMigracion && !migracionBuquesGuardadaEnSesion){
+    migracionBuquesGuardadaEnSesion = true;
+    saveBuques();
+  }
+}
+
+function construirTarjetaBuque(b, esArchivado){
     const card = document.createElement('div');
     const itemsFijosVisibles = BUQUE_ITEMS.filter(it => !b.itemsOcultos.includes(it.key));
     function recalcularProgreso(){
@@ -881,8 +942,47 @@ function renderBuques(){
 
     const colapsado = buquesColapsados.has(b.id);
 
+    card.className += esArchivado ? ' buque-card-archivado' : '';
+
+    if(!esArchivado){
+      card.draggable = true;
+      card.addEventListener('dragstart', (ev) => {
+        dragStateBuque = {buqueId: b.id};
+        card.classList.add('dragging');
+        ev.stopPropagation();
+      });
+      card.addEventListener('dragend', () => { card.classList.remove('dragging'); });
+      card.addEventListener('dragover', (ev) => {
+        if(!dragStateBuque) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        card.classList.add('drag-over');
+      });
+      card.addEventListener('dragleave', () => { card.classList.remove('drag-over'); });
+      card.addEventListener('drop', (ev) => {
+        if(!dragStateBuque) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        card.classList.remove('drag-over');
+        const rect = card.getBoundingClientRect();
+        const insertAfter = (ev.clientY - rect.top) > rect.height / 2;
+        reordenarBuque(dragStateBuque.buqueId, b.id, insertAfter);
+        dragStateBuque = null;
+        saveBuques();
+        renderBuques();
+      });
+    }
+
     const head = document.createElement('div');
     head.className = 'buque-head';
+
+    if(!esArchivado){
+      const buqueDragHandle = document.createElement('span');
+      buqueDragHandle.className = 'drag-handle';
+      buqueDragHandle.textContent = '⠿';
+      buqueDragHandle.title = 'Arrastrar para reordenar buques';
+      head.appendChild(buqueDragHandle);
+    }
 
     const collapseBtn = document.createElement('button');
     collapseBtn.className = 'buque-collapse-btn';
@@ -930,6 +1030,18 @@ function renderBuques(){
     editBtn.style.color = 'var(--navy)';
     editBtn.addEventListener('click', () => abrirModalBuque(b));
     head.appendChild(editBtn);
+
+    const archBtn = document.createElement('button');
+    archBtn.className = 'del-btn';
+    archBtn.textContent = esArchivado ? '↩' : '🗄';
+    archBtn.title = esArchivado ? 'Desarchivar (volver a la lista activa)' : 'Archivar (sacar de la lista activa sin borrar)';
+    archBtn.style.color = 'var(--text-muted)';
+    archBtn.addEventListener('click', () => {
+      b.archivado = !esArchivado;
+      saveBuques();
+      renderBuques();
+    });
+    head.appendChild(archBtn);
 
     const delBtn = document.createElement('button');
     delBtn.className = 'del-btn'; delBtn.textContent = '✕'; delBtn.title = 'Eliminar buque';
@@ -1114,16 +1226,16 @@ function renderBuques(){
       card.appendChild(addItemBtn);
     }
 
-    list.appendChild(card);
-  });
-
-  if(huboMigracion && !migracionBuquesGuardadaEnSesion){
-    migracionBuquesGuardadaEnSesion = true;
-    saveBuques();
-  }
+    return card;
 }
 
 document.getElementById('buqueSearchInput').addEventListener('input', renderBuques);
+
+document.getElementById('toggleArchivadosBtn').addEventListener('click', () => {
+  archivadosColapsado = !archivadosColapsado;
+  try{ localStorage.setItem('tdp_archivados_colapsado', archivadosColapsado ? '1' : '0'); }catch(e){}
+  renderBuques();
+});
 
 let editandoBuqueId = null;
 
