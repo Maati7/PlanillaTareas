@@ -925,6 +925,12 @@ function renderBuques(){
     prog.textContent = hechos + ' de ' + totalItems + ' completo';
     head.appendChild(prog);
 
+    const editBtn = document.createElement('button');
+    editBtn.className = 'del-btn'; editBtn.textContent = '✎'; editBtn.title = 'Editar datos del buque';
+    editBtn.style.color = 'var(--navy)';
+    editBtn.addEventListener('click', () => abrirModalBuque(b));
+    head.appendChild(editBtn);
+
     const delBtn = document.createElement('button');
     delBtn.className = 'del-btn'; delBtn.textContent = '✕'; delBtn.title = 'Eliminar buque';
     delBtn.addEventListener('click', () => {
@@ -1119,20 +1125,29 @@ function renderBuques(){
 
 document.getElementById('buqueSearchInput').addEventListener('input', renderBuques);
 
-document.getElementById('addBuqueBtn').addEventListener('click', () => {
-  document.getElementById('buqueModalTitle').textContent = 'Nuevo buque';
+let editandoBuqueId = null;
+
+function abrirModalBuque(buqueExistente){
+  editandoBuqueId = buqueExistente ? buqueExistente.id : null;
+  document.getElementById('buqueModalTitle').textContent = buqueExistente ? 'Editar buque' : 'Nuevo buque';
   document.getElementById('buqueModalTitle').style.color = '';
-  document.getElementById('buqueNumInput').value = '';
-  document.getElementById('buqueNombreInput').value = '';
-  document.getElementById('buqueUnidadInput').value = '';
-  document.getElementById('buqueExportadorInput').value = '';
-  document.getElementById('buqueMercaderiaInput').value = '';
-  document.getElementById('buqueAgenciaInput').value = '';
-  document.getElementById('buqueDestinoInput').value = '';
+  document.getElementById('buqueNumInput').value = buqueExistente ? buqueExistente.numero : '';
+  document.getElementById('buqueNombreInput').value = buqueExistente ? buqueExistente.nombre : '';
+  document.getElementById('buqueUnidadInput').value = buqueExistente ? buqueExistente.unidad : '';
+  document.getElementById('buqueExportadorInput').value = buqueExistente ? buqueExistente.exportador : '';
+  document.getElementById('buqueMercaderiaInput').value = buqueExistente ? buqueExistente.mercaderia : '';
+  document.getElementById('buqueAgenciaInput').value = buqueExistente ? buqueExistente.agenciaMaritima : '';
+  document.getElementById('buqueDestinoInput').value = buqueExistente ? buqueExistente.destino : '';
+  document.getElementById('buqueSaveBtn').textContent = buqueExistente ? 'Guardar cambios' : 'Guardar';
   document.getElementById('buqueModal').classList.add('open');
+}
+
+document.getElementById('addBuqueBtn').addEventListener('click', () => {
+  abrirModalBuque(null);
 });
 
 document.getElementById('buqueCancelBtn').addEventListener('click', () => {
+  editandoBuqueId = null;
   document.getElementById('buqueModal').classList.remove('open');
 });
 
@@ -1151,15 +1166,30 @@ document.getElementById('buqueSaveBtn').addEventListener('click', () => {
     return;
   }
   errBox.style.color = '';
-  const nuevo = nuevoBuqueVacio();
-  nuevo.numero = numero;
-  nuevo.nombre = nombre;
-  nuevo.unidad = unidad;
-  nuevo.exportador = exportador;
-  nuevo.mercaderia = mercaderia;
-  nuevo.agenciaMaritima = agenciaMaritima;
-  nuevo.destino = destino;
-  buques.unshift(nuevo);
+
+  if(editandoBuqueId){
+    const b = buques.find(x => x.id === editandoBuqueId);
+    if(b){
+      b.numero = numero;
+      b.nombre = nombre;
+      b.unidad = unidad;
+      b.exportador = exportador;
+      b.mercaderia = mercaderia;
+      b.agenciaMaritima = agenciaMaritima;
+      b.destino = destino;
+    }
+    editandoBuqueId = null;
+  } else {
+    const nuevo = nuevoBuqueVacio();
+    nuevo.numero = numero;
+    nuevo.nombre = nombre;
+    nuevo.unidad = unidad;
+    nuevo.exportador = exportador;
+    nuevo.mercaderia = mercaderia;
+    nuevo.agenciaMaritima = agenciaMaritima;
+    nuevo.destino = destino;
+    buques.unshift(nuevo);
+  }
   saveBuques();
   renderBuques();
   document.getElementById('buqueModal').classList.remove('open');
