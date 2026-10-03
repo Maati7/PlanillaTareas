@@ -41,7 +41,7 @@
   }
   *{box-sizing:border-box;}
   body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text);}
-  .wrap{max-width:1150px;margin:0 auto;padding:24px 20px 60px;}
+  .wrap{max-width:1400px;margin:0 auto;padding:24px 20px 60px;}
   header{background:var(--navy);color:#fff;padding:22px 28px;border-radius:12px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;}
   header h1{margin:0;font-size:20px;font-weight:700;}
   header p{margin:4px 0 0;font-size:13px;color:#C9D6EC;}
@@ -63,8 +63,11 @@
   }
   .today-info{font-size:15px;font-weight:700;color:var(--navy);}
   table{width:100%;border-collapse:collapse;font-size:13px;}
-  #tareasTable{table-layout:fixed;}
-  #tareasTable td{overflow:hidden;}
+  #tareasTable{table-layout:fixed;min-width:860px;}
+  #tareasTable td{overflow:hidden;padding:8px 5px;vertical-align:middle;}
+  #tareasTable th{padding:9px 5px;}
+  .tabla-scroll{overflow-x:auto;}
+  #tareasTable .del-btn{padding:2px 4px;}
   #tareasTable select{width:100%;box-sizing:border-box;}
   th{background:var(--blue);color:#fff;text-align:left;padding:9px 8px;font-size:11px;position:sticky;top:0;}
   td{padding:8px 8px;border-bottom:1px solid var(--border);vertical-align:top;}
@@ -229,23 +232,22 @@
 
     <div class="card">
       <div id="tareasLoading" class="loading">Cargando tareas...</div>
-      <table id="tareasTable" style="display:none">
+      <div class="tabla-scroll"><table id="tareasTable" style="display:none">
         <thead>
           <tr>
-            <th style="width:3%"></th>
-            <th style="width:11%">Área</th>
-            <th style="width:30%">Tarea</th>
-            <th style="width:10%">Frecuencia</th>
-            <th style="width:7%">Hora límite</th>
-            <th style="width:10%">Estado</th>
-            <th style="width:7%">Alerta</th>
-            <th style="width:9%">Responsable</th>
-            <th style="width:11%">Notas</th>
-            <th style="width:2%"></th>
+            <th style="width:30px"></th>
+            <th>Tarea</th>
+            <th style="width:110px">Frecuencia</th>
+            <th style="width:92px">Hora límite</th>
+            <th style="width:112px">Estado</th>
+            <th style="width:80px">Alerta</th>
+            <th style="width:90px">Responsable</th>
+            <th style="width:130px">Notas</th>
+            <th style="width:36px"></th>
           </tr>
         </thead>
         <tbody id="tareasBody"></tbody>
-      </table>
+      </table></div>
       <div class="add-row">
         <button class="btn secondary" id="addTareaBtn">+ Agregar tarea</button>
       </div>
@@ -1573,26 +1575,11 @@ function renderTareas(){
     tdDrag.appendChild(dragHandleTarea);
     tr.appendChild(tdDrag);
 
-    const tdArea = document.createElement('td');
-    const areaSelect = document.createElement('select');
-    AREAS.forEach(a => {
-      const opt = document.createElement('option');
-      opt.value = a; opt.textContent = a;
-      if(a === t.area) opt.selected = true;
-      areaSelect.appendChild(opt);
-    });
-    areaSelect.style.fontSize = '12px';
-    areaSelect.style.border = '1px solid var(--border)';
-    areaSelect.style.borderRadius = '6px';
-    areaSelect.style.padding = '4px';
-    areaSelect.addEventListener('change', () => { t.area = areaSelect.value; saveTareas(); });
-    tdArea.appendChild(areaSelect);
-    tr.appendChild(tdArea);
-
     const tdTarea = document.createElement('td');
     const tareaInput = document.createElement('input');
     tareaInput.className = 'notas'; tareaInput.type = 'text'; tareaInput.value = t.tarea;
-    tareaInput.addEventListener('change', () => { t.tarea = tareaInput.value; saveTareas(); });
+    tareaInput.title = t.tarea;
+    tareaInput.addEventListener('change', () => { t.tarea = tareaInput.value; tareaInput.title = t.tarea; saveTareas(); });
     tdTarea.appendChild(tareaInput);
     tr.appendChild(tdTarea);
 
