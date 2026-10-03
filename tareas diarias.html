@@ -721,10 +721,10 @@ const BUQUE_ITEMS = [
   {key:'trn', label:'T.R.N', group:'Datos técnicos'},
   {key:'bandera', label:'Bandera', group:'Datos técnicos'},
   {key:'eslora', label:'Eslora', group:'Datos técnicos'},
-  {key:'procedencia', label:'Procedencia', group:'Datos técnicos'},
   {key:'manga', label:'Manga', group:'Datos técnicos'},
-  {key:'ultimaCarga', label:'Última carga', group:'Datos técnicos'},
   {key:'puntal', label:'Puntal', group:'Datos técnicos'},
+  {key:'procedencia', label:'Procedencia', group:'Datos técnicos'},
+  {key:'ultimaCarga', label:'Última carga', group:'Datos técnicos'},
   {key:'coem', label:'COEM', group:'Datos técnicos'},
   {key:'caladoInicial', label:'Calado inicial', group:'Datos técnicos'},
   {key:'caladoFinal', label:'Calado final', group:'Datos técnicos'},
@@ -825,39 +825,164 @@ function reordenarBuque(dragId, targetId, insertAfter){
   buques.splice(toIdx, 0, item);
 }
 
-let ultimoBuquesLocal = null;
-let migracionBuquesGuardadaEnSesion = false; // corta cualquier bucle de guardado automático: solo 1 vez por carga de página
-let buquesSaveTimer = null;
+// ===== Guardado de buques: un documento de Firebase por buque =====
+// Cada buque vive en su propio documento ("buque_<id>") dentro de la misma colección,
+// y al tildar o escribir algo se actualiza SOLO ese campo. Así dos PCs pueden trabajar
+// al mismo tiempo (incluso en el mismo buque) sin pisarse los cambios.
+const BUQUE_DOC_PREFIX = 'buque_';
+let buquesNormalizadosEnSesion = new Set(); // evita re-guardar la normalización en bucle
+let renderBuquesPendiente = false;
+let buquesCargados = false;
 
-function loadBuques(){
-  suscribirseADoc('buques', (value) => {
-    if(value === ultimoBuquesLocal) return; // es el eco de nuestro propio guardado, no hace falta repintar
-    buques = value ? JSON.parse(value) : [];
-    document.getElementById('buqueLoading').style.display = 'none';
-    renderBuques();
-  });
-}
+function buqueRef(id){ return db.collection(FIRESTORE_COLLECTION).doc(BUQUE_DOC_PREFIX + id); }
+function limpiarParaFirestore(v){ return JSON.parse(JSON.stringify(v)); }
 
-async function saveBuques(){
+async function conEstadoGuardado(fn){
   sinGuardar = true;
-  const payload = JSON.stringify(buques);
-  ultimoBuquesLocal = payload;
   try{
-    await window.storage.set('buques', payload, true);
+    await fn();
     flashSync(true);
     return true;
   }catch(e){
-    console.error('Error al guardar buques', e);
+    console.error('Error al guardar buque', e);
     flashSync(false);
     return false;
   }
 }
 
-// Agrupa tildes/ediciones rápidas en un solo guardado, en vez de uno por cada click
-function saveBuquesDebounced(){
-  sinGuardar = true;
-  if(buquesSaveTimer) clearTimeout(buquesSaveTimer);
-  buquesSaveTimer = setTimeout(() => { saveBuques(); }, 700);
+// Guarda el buque entero (alta de buque nuevo o normalización)
+function guardarBuqueCompleto(b){
+  return conEstadoGuardado(() => buqueRef(b.id).set(Object.assign(limpiarParaFirestore(b), {tipo:'buque'})));
+}
+
+// Actualiza solo los campos indicados. cambios: [[ruta, valor], ...]
+// ruta puede ser 'archivado' o ['items','atraco'] para un campo anidado.
+function actualizarBuque(b, cambios){
+  return conEstadoGuardado(async () => {
+    const args = [];
+    cambios.forEach(([ruta, valor]) => {
+      const partes = Array.isArray(ruta) ? ruta : [ruta];
+      args.push(new firebase.firestore.FieldPath(...partes), limpiarParaFirestore(valor));
+    });
+    try{
+      await buqueRef(b.id).update(...args);
+    }catch(e){
+      // Si el documento todavía no existe, se crea completo
+      if(e && e.code === 'not-found'){
+        await buqueRef(b.id).set(Object.assign(limpiarParaFirestore(b), {tipo:'buque'}));
+      } else { throw e; }
+    }
+  });
+}
+
+function borrarBuqueDoc(id){
+  return conEstadoGuardado(() => buqueRef(id).delete());
+}
+
+// Guarda la posición de cada buque en la lista (solo los que cambiaron de lugar)
+function guardarOrdenBuques(){
+  return conEstadoGuardado(async () => {
+    const batch = db.batch();
+    let hayCambios = false;
+    buques.forEach((b, i) => {
+      if(b.orden !== i){
+        b.orden = i;
+        batch.update(buqueRef(b.id), {orden: i});
+        hayCambios = true;
+      }
+    });
+    if(hayCambios) await batch.commit();
+  });
+}
+
+// Pasa los buques del formato viejo (todos juntos en el documento "buques")
+// a un documento por buque. Deja una copia de respaldo del documento viejo.
+// Si alguna PC con la versión anterior vuelve a escribir "buques", se migra de nuevo
+// sin pisar los buques que ya existen.
+async function migrarBuquesViejos(valorViejo){
+  let lista;
+  try{ lista = JSON.parse(valorViejo); }catch(e){ console.error('No se pudo leer el documento viejo de buques', e); return; }
+  if(!Array.isArray(lista)) return;
+  const viejoRef = db.collection(FIRESTORE_COLLECTION).doc('buques');
+  const fechaTxt = new Date().toISOString().replace(/[:.]/g,'-');
+  const respaldoRef = db.collection(FIRESTORE_COLLECTION).doc('buques-respaldo-' + fechaTxt);
+  try{
+    await db.runTransaction(async (tx) => {
+      const viejoSnap = await tx.get(viejoRef);
+      if(!viejoSnap.exists) return; // otra PC ya lo migró
+      const existentes = [];
+      for(const b of lista){
+        if(!b || !b.id) { existentes.push(true); continue; }
+        const snap = await tx.get(buqueRef(b.id));
+        existentes.push(snap.exists);
+      }
+      lista.forEach((b, i) => {
+        if(!b || !b.id || existentes[i]) return;
+        const doc = limpiarParaFirestore(b);
+        doc.tipo = 'buque';
+        if(typeof doc.orden !== 'number') doc.orden = i;
+        tx.set(buqueRef(b.id), doc);
+      });
+      tx.set(respaldoRef, {value: viejoSnap.data().value, fecha: new Date().toISOString()});
+      tx.delete(viejoRef);
+    });
+    console.log('Buques migrados a un documento por buque (' + lista.length + ')');
+  }catch(e){
+    console.error('Error migrando buques', e);
+  }
+}
+
+function hayInputDeBuqueEnFoco(){
+  const ae = document.activeElement;
+  if(!ae || ae.tagName !== 'INPUT' || ae.type !== 'text') return false;
+  return document.getElementById('buqueList').contains(ae) || document.getElementById('buqueArchivadosList').contains(ae);
+}
+
+function loadBuques(){
+  // Formato viejo: si aparece el documento "buques", se migra
+  suscribirseADoc('buques', (value) => {
+    if(value) migrarBuquesViejos(value);
+  });
+
+  db.collection(FIRESTORE_COLLECTION).where('tipo', '==', 'buque').onSnapshot(snap => {
+    const nuevos = [];
+    snap.forEach(doc => {
+      const d = doc.data();
+      if(!d.id) d.id = doc.id.slice(BUQUE_DOC_PREFIX.length);
+      const existente = buques.find(x => x.id === d.id);
+      if(existente){
+        // Se actualiza el mismo objeto para que la tarjeta en pantalla siga apuntando a él
+        Object.keys(existente).forEach(k => { if(!(k in d)) delete existente[k]; });
+        Object.assign(existente, d);
+        nuevos.push(existente);
+      } else {
+        nuevos.push(d);
+      }
+    });
+    nuevos.sort((a, b) => {
+      const oa = typeof a.orden === 'number' ? a.orden : 0;
+      const ob = typeof b.orden === 'number' ? b.orden : 0;
+      if(oa !== ob) return oa - ob;
+      return (b.fecha || '').localeCompare(a.fecha || '');
+    });
+    buques = nuevos;
+    buquesCargados = true;
+    document.getElementById('buqueLoading').style.display = 'none';
+    // Si estás escribiendo en una observación, no se repinta hasta que salgas del campo
+    if(hayInputDeBuqueEnFoco()){ renderBuquesPendiente = true; return; }
+    renderBuques();
+  }, err => console.error('Error de sincronización en buques', err));
+
+  const repintarSiHacePendiente = () => {
+    setTimeout(() => {
+      if(renderBuquesPendiente && !hayInputDeBuqueEnFoco()){
+        renderBuquesPendiente = false;
+        renderBuques();
+      }
+    }, 0);
+  };
+  document.getElementById('buqueList').addEventListener('focusout', repintarSiHacePendiente);
+  document.getElementById('buqueArchivadosList').addEventListener('focusout', repintarSiHacePendiente);
 }
 
 function renderBuques(){
@@ -889,8 +1014,9 @@ function renderBuques(){
   }
   empty.style.display = 'none';
 
-  let huboMigracion = false;
+  const buquesANormalizar = [];
   buquesFiltrados.forEach(b => {
+    let huboMigracion = false;
     if(!b.itemsExtra) b.itemsExtra = [];
     if(!b.itemsOcultos) { b.itemsOcultos = []; huboMigracion = true; }
     if(b.archivado === undefined) { b.archivado = false; huboMigracion = true; }
@@ -899,6 +1025,7 @@ function renderBuques(){
       if(!b.items[it.key]){ b.items[it.key] = {texto:'', recibido:false}; huboMigracion = true; }
     });
     if(sincronizarOrdenItems(b)) huboMigracion = true;
+    if(huboMigracion) buquesANormalizar.push(b);
   });
 
   const activos = buquesFiltrados.filter(b => !b.archivado);
@@ -920,10 +1047,11 @@ function renderBuques(){
     archSection.style.display = 'none';
   }
 
-  if(huboMigracion && !migracionBuquesGuardadaEnSesion){
-    migracionBuquesGuardadaEnSesion = true;
-    saveBuques();
-  }
+  buquesANormalizar.forEach(b => {
+    if(buquesNormalizadosEnSesion.has(b.id)) return;
+    buquesNormalizadosEnSesion.add(b.id);
+    actualizarBuque(b, [['items', b.items], ['itemsExtra', b.itemsExtra], ['itemsOcultos', b.itemsOcultos], ['ordenItems', b.ordenItems], ['archivado', b.archivado]]);
+  });
 }
 
 function construirTarjetaBuque(b, esArchivado){
@@ -968,7 +1096,7 @@ function construirTarjetaBuque(b, esArchivado){
         const insertAfter = (ev.clientY - rect.top) > rect.height / 2;
         reordenarBuque(dragStateBuque.buqueId, b.id, insertAfter);
         dragStateBuque = null;
-        saveBuques();
+        guardarOrdenBuques();
         renderBuques();
       });
     }
@@ -1038,7 +1166,7 @@ function construirTarjetaBuque(b, esArchivado){
     archBtn.style.color = 'var(--text-muted)';
     archBtn.addEventListener('click', () => {
       b.archivado = !esArchivado;
-      saveBuques();
+      actualizarBuque(b, [['archivado', b.archivado]]);
       renderBuques();
     });
     head.appendChild(archBtn);
@@ -1048,7 +1176,7 @@ function construirTarjetaBuque(b, esArchivado){
     delBtn.addEventListener('click', () => {
       if(!confirm('¿Eliminar este buque de la lista?')) return;
       buques = buques.filter(x => x.id !== b.id);
-      saveBuques();
+      borrarBuqueDoc(b.id);
       renderBuques();
     });
     head.appendChild(delBtn);
@@ -1086,7 +1214,7 @@ function construirTarjetaBuque(b, esArchivado){
           const insertAfter = (ev.clientY - rect.top) > rect.height / 2;
           reordenarItemBuque(b, dragState.itemId, it.id, insertAfter);
           dragState = null;
-          saveBuques();
+          actualizarBuque(b, [['ordenItems', b.ordenItems]]);
           renderBuques();
         });
 
@@ -1102,15 +1230,16 @@ function construirTarjetaBuque(b, esArchivado){
           if(it.tipo === 'fijo'){
             if(!b.items[it.id]) b.items[it.id] = {texto:'', recibido:false};
             b.items[it.id].recibido = check.checked;
+            actualizarBuque(b, [[['items', it.id, 'recibido'], check.checked]]);
           } else {
             const extra = b.itemsExtra.find(x => x.id === it.id);
             if(extra) extra.recibido = check.checked;
+            actualizarBuque(b, [['itemsExtra', b.itemsExtra]]);
           }
           row.classList.toggle('done', check.checked);
           const {total, hechosAhora} = recalcularProgreso();
           prog.textContent = hechosAhora + ' de ' + total + ' completo';
           prog.classList.toggle('completo', hechosAhora === total);
-          saveBuquesDebounced();
         });
 
         const label = document.createElement('label');
@@ -1125,11 +1254,12 @@ function construirTarjetaBuque(b, esArchivado){
           if(it.tipo === 'fijo'){
             if(!b.items[it.id]) b.items[it.id] = {texto:'', recibido:false};
             b.items[it.id].texto = texto.value;
+            actualizarBuque(b, [[['items', it.id, 'texto'], texto.value]]);
           } else {
             const extra = b.itemsExtra.find(x => x.id === it.id);
             if(extra) extra.texto = texto.value;
+            actualizarBuque(b, [['itemsExtra', b.itemsExtra]]);
           }
-          saveBuques();
         });
 
         row.appendChild(dragHandle);
@@ -1145,7 +1275,7 @@ function construirTarjetaBuque(b, esArchivado){
           delItemBtn.addEventListener('click', () => {
             b.itemsExtra = b.itemsExtra.filter(x => x.id !== it.id);
             sincronizarOrdenItems(b);
-            saveBuques();
+            actualizarBuque(b, [['itemsExtra', b.itemsExtra], ['ordenItems', b.ordenItems]]);
             renderBuques();
           });
           row.appendChild(delItemBtn);
@@ -1158,7 +1288,7 @@ function construirTarjetaBuque(b, esArchivado){
             if(!b.itemsOcultos) b.itemsOcultos = [];
             b.itemsOcultos.push(it.id);
             sincronizarOrdenItems(b);
-            saveBuques();
+            actualizarBuque(b, [['itemsOcultos', b.itemsOcultos], ['ordenItems', b.ordenItems]]);
             renderBuques();
           });
           row.appendChild(hideItemBtn);
@@ -1195,7 +1325,7 @@ function construirTarjetaBuque(b, esArchivado){
           restoreBtn.addEventListener('click', () => {
             b.itemsOcultos = b.itemsOcultos.filter(k => k !== key);
             sincronizarOrdenItems(b);
-            saveBuques();
+            actualizarBuque(b, [['itemsOcultos', b.itemsOcultos], ['ordenItems', b.ordenItems]]);
             renderBuques();
           });
           line.appendChild(lbl);
@@ -1220,7 +1350,7 @@ function construirTarjetaBuque(b, esArchivado){
         if(!label || !label.trim()) return;
         b.itemsExtra.push({id: uid(), label: label.trim(), texto:'', recibido:false});
         sincronizarOrdenItems(b);
-        saveBuques();
+        actualizarBuque(b, [['itemsExtra', b.itemsExtra], ['ordenItems', b.ordenItems]]);
         renderBuques();
       });
       card.appendChild(addItemBtn);
@@ -1289,6 +1419,7 @@ document.getElementById('buqueSaveBtn').addEventListener('click', () => {
       b.mercaderia = mercaderia;
       b.agenciaMaritima = agenciaMaritima;
       b.destino = destino;
+      actualizarBuque(b, [['numero', numero], ['nombre', nombre], ['unidad', unidad], ['exportador', exportador], ['mercaderia', mercaderia], ['agenciaMaritima', agenciaMaritima], ['destino', destino]]);
     }
     editandoBuqueId = null;
   } else {
@@ -1300,9 +1431,11 @@ document.getElementById('buqueSaveBtn').addEventListener('click', () => {
     nuevo.mercaderia = mercaderia;
     nuevo.agenciaMaritima = agenciaMaritima;
     nuevo.destino = destino;
+    const ordenes = buques.map(x => typeof x.orden === 'number' ? x.orden : 0);
+    nuevo.orden = ordenes.length ? Math.min(...ordenes) - 1 : 0;
     buques.unshift(nuevo);
+    guardarBuqueCompleto(nuevo);
   }
-  saveBuques();
   renderBuques();
   document.getElementById('buqueModal').classList.remove('open');
 });
