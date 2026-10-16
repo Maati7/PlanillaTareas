@@ -162,6 +162,21 @@
   .task-empty{padding:28px;text-align:center;color:var(--text-muted);font-size:13px;}
   .task-footer{padding:10px 10px 0;}
 
+
+  .task-section{padding:4px 0 6px;}
+  .task-section + .task-section{border-top:1px solid var(--border-strong);margin-top:6px;padding-top:10px;}
+  .task-section-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:6px 12px 8px 12px;}
+  .task-section-title{font-size:15px;font-weight:600;color:var(--text);}
+  .task-section-desc{font-size:12px;color:var(--text-muted);margin-top:1px;}
+  .task-section-count{font-size:12.5px;color:var(--text-muted);font-variant-numeric:tabular-nums;white-space:nowrap;}
+  .task-section-foot{padding:8px 12px 2px;}
+  .btn.small{padding:5px 11px;font-size:12.5px;}
+  .drag-space{visibility:hidden;display:inline-block;width:24px;}
+  .chip.carry{background:var(--blue-light);color:var(--accent-text);}
+  .quick-add-wrap{padding:0 12px 8px;}
+  .quick-add{width:100%;font-size:14px !important;padding:10px 12px !important;border:1px dashed var(--border-strong) !important;background:var(--card-2) !important;}
+  .quick-add:focus{border-style:solid !important;border-color:var(--blue) !important;background:var(--card) !important;}
+
   /* ===== Botones ===== */
   .del-btn{background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;padding:2px 6px;border-radius:6px;}
   .del-btn:hover{background:var(--red-bg);}
@@ -343,9 +358,6 @@
     <div class="card task-card">
       <div id="tareasLoading" class="loading">Cargando tareas...</div>
       <div id="tareasList" class="task-list" style="display:none"></div>
-      <div class="task-footer">
-        <button class="btn ghost-add" id="addTareaBtn">+ Agregar tarea</button>
-      </div>
     </div>
   </div>
 
@@ -711,6 +723,7 @@ function mostrarCalendarioSiListo(){
   renderCalendario();
   renderVencList();
   renderVencBanner();
+  renderTareasSeguro();
 }
 
 async function toggleVencCompletado(anio, mes, vencId){
@@ -1621,6 +1634,7 @@ function reordenarTarea(dragId, targetId, insertAfter){
 let tareaEditandoId = null;
 let renderTareasPendiente = false;
 const COLORES_RESP = ['#2F62C8','#1F8A4C','#B4541F','#7A4FC2','#0E8A8A','#B83265'];
+const DIAS_ATRAS_CALENDARIO = 15; // cuántos días hacia atrás se buscan tareas del calendario sin tildar
 
 function colorResponsable(r){
   const i = RESPONSABLES.indexOf(r);
@@ -1630,6 +1644,7 @@ function colorResponsable(r){
 function hayInputDeTareaEnFoco(){
   const ae = document.activeElement;
   if(!ae || !['INPUT','SELECT','TEXTAREA'].includes(ae.tagName)) return false;
+  if(ae.classList.contains('quick-add') && !ae.value) return false; // el campo rápido vacío no frena el repintado
   return document.getElementById('tareasList').contains(ae);
 }
 
@@ -1646,147 +1661,298 @@ function crearEl(tag, clase, texto){
   return el;
 }
 
-function construirFilaTarea(t, ctx){
-  const {aplica, alerta, diaSemana} = ctx;
-  const row = crearEl('div', 'task-row');
-  if(t.estado === 'Hecho') row.classList.add('is-done');
-  if(t.estado === 'En curso') row.classList.add('is-progress');
-  if(diaSemana && !aplica) row.classList.add('is-dim');
-  if(alerta === 'vencido') row.classList.add('is-overdue');
-  if(alerta === 'porvencer') row.classList.add('is-soon');
-  const editando = tareaEditandoId === t.id;
-  if(editando) row.classList.add('is-editing');
+function fechaCorta(fechaStr){
+  const [y,m,d] = fechaStr.split('-').map(Number);
+  return d + '/' + m;
+}
+function fechaStrDe(dt){
+  return dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0');
+}
 
-  // Arrastrar solo desde la manija, para no interferir con los campos de edición
-  row.addEventListener('dragstart', () => { dragTareaId = t.id; row.classList.add('dragging'); });
-  row.addEventListener('dragend', () => { row.classList.remove('dragging'); row.draggable = false; });
-  row.addEventListener('dragover', (ev) => { if(!dragTareaId) return; ev.preventDefault(); row.classList.add('drag-over-row'); });
-  row.addEventListener('dragleave', () => { row.classList.remove('drag-over-row'); });
-  row.addEventListener('drop', (ev) => {
-    ev.preventDefault();
-    row.classList.remove('drag-over-row');
-    if(!dragTareaId) return;
-    const rect = row.getBoundingClientRect();
-    const insertAfter = (ev.clientY - rect.top) > rect.height / 2;
-    reordenarTarea(dragTareaId, t.id, insertAfter);
-    dragTareaId = null;
-    saveTareas();
-    renderTareas();
-  });
+// ===== Tareas que surgen en el día: un documento de Firebase por tarea =====
+let extras = [];
+function extraRef(id){ return db.collection(FIRESTORE_COLLECTION).doc('extra_' + id); }
+function guardarExtra(x){ return conEstadoGuardado(() => extraRef(x.id).set(Object.assign(limpiarParaFirestore(x), {tipo:'tarea-extra'}))); }
+function actualizarExtra(x, campos){ return conEstadoGuardado(() => extraRef(x.id).update(limpiarParaFirestore(campos))); }
+function borrarExtra(id){ return conEstadoGuardado(() => extraRef(id).delete()); }
+
+function loadExtras(){
+  db.collection(FIRESTORE_COLLECTION).where('tipo', '==', 'tarea-extra').onSnapshot(snap => {
+    const lista = [];
+    snap.forEach(doc => lista.push(doc.data()));
+    lista.sort((a, b) => (a.creadaTs || '').localeCompare(b.creadaTs || ''));
+    extras = lista;
+    renderTareasSeguro();
+  }, err => console.error('Error de sincronización en tareas del día', err));
+}
+
+// Se ven el día que se cargaron y todos los siguientes hasta que alguien las tilde
+function extrasParaFecha(fecha){
+  return extras.filter(x => x.creada <= fecha && (!x.hecha || x.hechaFecha === fecha));
+}
+
+// ===== Tareas del calendario que corresponden a una fecha (incluye atrasadas sin tildar) =====
+function calendarioParaFecha(fechaStr){
+  if(!fechaStr) return [];
+  const [y,m,d] = fechaStr.split('-').map(Number);
+  const res = [];
+  for(let atras = DIAS_ATRAS_CALENDARIO; atras >= 0; atras--){
+    const dt = new Date(y, m-1, d - atras);
+    const anio = dt.getFullYear(), mes = dt.getMonth()+1, dia = dt.getDate();
+    const diasMes = new Date(anio, mes, 0).getDate();
+    vencimientos.forEach(v => {
+      let vd = parseInt(v.dia);
+      if(!vd) return;
+      if(vd > diasMes) vd = diasMes; // ej: día 31 en un mes de 30 → último día
+      if(vd !== dia) return;
+      const key = anio + '-' + mes + '-' + v.id;
+      const marca = vencCompletados[key];
+      const hecho = !!marca;
+      // Las atrasadas ya hechas se ocultan, salvo que se hayan tildado en la fecha que estás mirando
+      if(atras > 0 && hecho && marca !== fechaStr) return;
+      res.push({v, key, atras, hecho, fechaVenc: fechaStrDe(dt)});
+    });
+  }
+  return res;
+}
+
+async function toggleVencDesdeLista(key, fecha){
+  if(vencCompletados[key]) delete vencCompletados[key];
+  else vencCompletados[key] = fecha; // guarda en qué día se tildó (el calendario lo toma igual como hecho)
+  sinGuardar = true;
+  try{
+    await window.storage.set('vencimientos-completados', JSON.stringify(vencCompletados), true);
+    flashSync(true);
+  }catch(e){
+    console.error('Error al guardar vencimientos completados', e);
+    flashSync(false);
+  }
+  renderCalendario();
+  renderTareas();
+}
+
+// ===== Fila genérica =====
+// opciones: {clases, hecho, enCurso, onToggle, titulo, chips:[[clase,texto]], nota, responsable (undefined = sin avatar),
+//            onEditar, onBorrar, panelEdicion, editando, arrastre:{id}}
+function construirFila(o){
+  const row = crearEl('div', 'task-row ' + (o.clases || ''));
+  if(o.hecho) row.classList.add('is-done');
+  if(o.enCurso) row.classList.add('is-progress');
+  if(o.editando) row.classList.add('is-editing');
 
   const main = crearEl('div', 'task-main');
 
-  const handle = crearEl('span', 'drag-handle', '⠿');
-  handle.title = 'Arrastrar para reordenar';
-  handle.addEventListener('mousedown', () => { row.draggable = true; });
-  handle.addEventListener('mouseup', () => { row.draggable = false; });
-  main.appendChild(handle);
+  if(o.arrastre){
+    row.addEventListener('dragstart', () => { dragTareaId = o.arrastre.id; row.classList.add('dragging'); });
+    row.addEventListener('dragend', () => { row.classList.remove('dragging'); row.draggable = false; });
+    row.addEventListener('dragover', (ev) => { if(!dragTareaId) return; ev.preventDefault(); row.classList.add('drag-over-row'); });
+    row.addEventListener('dragleave', () => { row.classList.remove('drag-over-row'); });
+    row.addEventListener('drop', (ev) => {
+      ev.preventDefault();
+      row.classList.remove('drag-over-row');
+      if(!dragTareaId) return;
+      const rect = row.getBoundingClientRect();
+      const insertAfter = (ev.clientY - rect.top) > rect.height / 2;
+      reordenarTarea(dragTareaId, o.arrastre.id, insertAfter);
+      dragTareaId = null;
+      saveTareas();
+      renderTareas();
+    });
+    const handle = crearEl('span', 'drag-handle', '⠿');
+    handle.title = 'Arrastrar para reordenar';
+    handle.addEventListener('mousedown', () => { row.draggable = true; });
+    handle.addEventListener('mouseup', () => { row.draggable = false; });
+    main.appendChild(handle);
+  } else {
+    main.appendChild(crearEl('span', 'drag-handle drag-space', ''));
+  }
 
-  const check = crearEl('button', 'task-check', t.estado === 'Hecho' ? '✓' : '');
-  check.title = t.estado === 'Hecho' ? 'Marcar como pendiente' : 'Marcar como hecha';
+  const check = crearEl('button', 'task-check', o.hecho ? '✓' : '');
+  check.title = o.hecho ? 'Marcar como pendiente' : 'Marcar como hecha';
   check.setAttribute('aria-label', check.title);
-  check.addEventListener('click', () => {
-    t.estado = t.estado === 'Hecho' ? 'Pendiente' : 'Hecho';
-    saveTareas();
-    renderTareas();
-  });
+  check.addEventListener('click', o.onToggle);
   main.appendChild(check);
 
   const body = crearEl('div', 'task-body');
-  body.title = 'Tocá para editar';
-  body.appendChild(crearEl('div', 'task-title', t.tarea || 'Sin nombre'));
+  body.appendChild(crearEl('div', 'task-title', o.titulo || 'Sin nombre'));
   const meta = crearEl('div', 'task-meta');
-  if(t.estado === 'En curso') meta.appendChild(crearEl('span', 'chip progress', 'En curso'));
-  if(t.horaLimite){
-    if(alerta === 'vencido') meta.appendChild(crearEl('span', 'chip time-overdue', 'Venció a las ' + t.horaLimite));
-    else if(alerta === 'porvencer') meta.appendChild(crearEl('span', 'chip time-soon', 'Vence a las ' + t.horaLimite));
-    else meta.appendChild(crearEl('span', 'chip', 'Hasta las ' + t.horaLimite));
-  }
-  if(t.frecuencia && t.frecuencia !== 'Diaria') meta.appendChild(crearEl('span', 'chip day', 'Solo los ' + t.frecuencia.toLowerCase()));
-  if(t.notas) meta.appendChild(crearEl('span', 'task-note', t.notas));
+  (o.chips || []).forEach(([clase, texto]) => meta.appendChild(crearEl('span', 'chip ' + clase, texto)));
+  if(o.nota) meta.appendChild(crearEl('span', 'task-note', o.nota));
   body.appendChild(meta);
-  body.addEventListener('click', () => {
-    tareaEditandoId = editando ? null : t.id;
-    renderTareas();
-  });
+  if(o.onEditar){ body.title = 'Tocá para editar'; body.addEventListener('click', o.onEditar); }
+  else body.style.cursor = 'default';
   main.appendChild(body);
 
-  const av = crearEl('div', 'avatar' + (t.responsable ? '' : ' empty'), t.responsable || '—');
-  if(t.responsable) av.style.background = colorResponsable(t.responsable);
-  av.title = t.responsable ? 'Responsable: ' + t.responsable : 'Sin responsable';
-  main.appendChild(av);
+  if(o.responsable !== undefined){
+    const av = crearEl('div', 'avatar' + (o.responsable ? '' : ' empty'), o.responsable || '—');
+    if(o.responsable) av.style.background = colorResponsable(o.responsable);
+    av.title = o.responsable ? 'Responsable: ' + o.responsable : 'Sin responsable';
+    main.appendChild(av);
+  }
 
   const actions = crearEl('div', 'task-actions');
-  const editBtn = crearEl('button', 'icon-btn edit', '✎');
-  editBtn.title = 'Editar tarea';
-  editBtn.addEventListener('click', () => { tareaEditandoId = editando ? null : t.id; renderTareas(); });
-  const delBtn = crearEl('button', 'icon-btn danger', '✕');
-  delBtn.title = 'Eliminar tarea';
-  delBtn.addEventListener('click', () => {
-    if(!confirm('¿Eliminar la tarea "' + t.tarea + '"?')) return;
-    tareas = tareas.filter(x => x.id !== t.id);
-    if(tareaEditandoId === t.id) tareaEditandoId = null;
-    saveTareas();
-    renderTareas();
-  });
-  actions.appendChild(editBtn);
-  actions.appendChild(delBtn);
+  if(o.onEditar){
+    const editBtn = crearEl('button', 'icon-btn edit', '✎');
+    editBtn.title = 'Editar tarea';
+    editBtn.addEventListener('click', o.onEditar);
+    actions.appendChild(editBtn);
+  }
+  if(o.onBorrar){
+    const delBtn = crearEl('button', 'icon-btn danger', '✕');
+    delBtn.title = 'Eliminar tarea';
+    delBtn.addEventListener('click', o.onBorrar);
+    actions.appendChild(delBtn);
+  }
   main.appendChild(actions);
   row.appendChild(main);
-
-  if(editando) row.appendChild(construirEdicionTarea(t));
+  if(o.editando && o.panelEdicion) row.appendChild(o.panelEdicion());
   return row;
 }
 
-function construirEdicionTarea(t){
+function chipsHora(horaLimite, alerta){
+  if(!horaLimite) return [];
+  if(alerta === 'vencido') return [['time-overdue', 'Venció a las ' + horaLimite]];
+  if(alerta === 'porvencer') return [['time-soon', 'Vence a las ' + horaLimite]];
+  return [['', 'Hasta las ' + horaLimite]];
+}
+
+// ===== Panel de edición =====
+function panelEdicion(campos, onListo){
   const panel = crearEl('div', 'task-edit');
-  function campo(etiqueta, control, wide){
-    const f = crearEl('div', 'f' + (wide ? ' wide' : ''));
-    const l = crearEl('label', '', etiqueta);
-    f.appendChild(l); f.appendChild(control);
+  campos.forEach(c => {
+    const f = crearEl('div', 'f' + (c.wide ? ' wide' : ''));
+    f.appendChild(crearEl('label', '', c.etiqueta));
+    let ctrl;
+    if(c.opciones){
+      ctrl = document.createElement('select');
+      c.opciones.forEach(([v, txt]) => {
+        const op = document.createElement('option');
+        op.value = v; op.textContent = txt;
+        if(v === c.valor) op.selected = true;
+        ctrl.appendChild(op);
+      });
+    } else {
+      ctrl = document.createElement('input');
+      ctrl.type = c.tipo || 'text';
+      ctrl.value = c.valor || '';
+      if(c.placeholder) ctrl.placeholder = c.placeholder;
+      if(c.clase) ctrl.className = c.clase;
+    }
+    ctrl.addEventListener('change', () => c.onChange(ctrl.value));
+    f.appendChild(ctrl);
     panel.appendChild(f);
-    return control;
-  }
-  function selectCon(opciones, valor){
-    const s = document.createElement('select');
-    opciones.forEach(([v, txt]) => {
-      const o = document.createElement('option');
-      o.value = v; o.textContent = txt;
-      if(v === valor) o.selected = true;
-      s.appendChild(o);
-    });
-    return s;
-  }
-
-  const nombre = document.createElement('input');
-  nombre.type = 'text'; nombre.value = t.tarea; nombre.className = 'edit-nombre';
-  campo('Tarea', nombre).addEventListener('change', () => { t.tarea = nombre.value.trim() || t.tarea; saveTareas(); renderTareasSeguro(); });
-
-  const frec = selectCon(['Diaria', ...DIAS_SEMANA].map(d => [d, d === 'Diaria' ? 'Todos los días' : d]), t.frecuencia);
-  campo('Frecuencia', frec).addEventListener('change', () => { t.frecuencia = frec.value; saveTareas(); renderTareas(); });
-
-  const hora = document.createElement('input');
-  hora.type = 'time'; hora.value = t.horaLimite || '';
-  campo('Hora límite', hora).addEventListener('change', () => { t.horaLimite = hora.value; saveTareas(); renderTareasSeguro(); });
-
-  const estado = selectCon([['Pendiente','Pendiente'],['En curso','En curso'],['Hecho','Hecha']], t.estado);
-  campo('Estado', estado).addEventListener('change', () => { t.estado = estado.value; saveTareas(); renderTareas(); });
-
-  const resp = selectCon([['', 'Sin asignar'], ...RESPONSABLES.map(r => [r, r])], t.responsable || '');
-  campo('Responsable', resp).addEventListener('change', () => { t.responsable = resp.value; saveTareas(); renderTareas(); });
-
-  const notas = document.createElement('input');
-  notas.type = 'text'; notas.value = t.notas || ''; notas.placeholder = 'Una aclaración para el equipo';
-  campo('Notas', notas, true).addEventListener('change', () => { t.notas = notas.value; saveTareas(); renderTareasSeguro(); });
-
+  });
   const listo = crearEl('button', 'btn edit-done', 'Listo');
-  listo.addEventListener('click', () => { tareaEditandoId = null; renderTareas(); });
+  listo.addEventListener('click', onListo);
   panel.appendChild(listo);
   return panel;
 }
 
+const OPC_RESP = () => [['', 'Sin asignar'], ...RESPONSABLES.map(r => [r, r])];
+function cerrarEdicion(){ tareaEditandoId = null; renderTareas(); }
+function alternarEdicion(id){ tareaEditandoId = tareaEditandoId === id ? null : id; renderTareas(); }
+
+// ===== Filas por tipo =====
+function filaFija(t, aplica, alerta, diaSemana){
+  const chips = [];
+  if(t.estado === 'En curso') chips.push(['progress', 'En curso']);
+  chips.push(...chipsHora(t.horaLimite, alerta));
+  if(t.frecuencia && t.frecuencia !== 'Diaria') chips.push(['day', 'Solo los ' + t.frecuencia.toLowerCase()]);
+  let clases = '';
+  if(diaSemana && !aplica) clases += ' is-dim';
+  if(alerta === 'vencido') clases += ' is-overdue';
+  if(alerta === 'porvencer') clases += ' is-soon';
+  return construirFila({
+    clases, hecho: t.estado === 'Hecho', enCurso: t.estado === 'En curso',
+    titulo: t.tarea, chips, nota: t.notas, responsable: t.responsable || '',
+    arrastre: {id: t.id},
+    editando: tareaEditandoId === t.id,
+    onToggle: () => { t.estado = t.estado === 'Hecho' ? 'Pendiente' : 'Hecho'; saveTareas(); renderTareas(); },
+    onEditar: () => alternarEdicion(t.id),
+    onBorrar: () => {
+      if(!confirm('¿Eliminar la tarea "' + t.tarea + '"? Deja de aparecer todos los días.')) return;
+      tareas = tareas.filter(x => x.id !== t.id);
+      if(tareaEditandoId === t.id) tareaEditandoId = null;
+      saveTareas(); renderTareas();
+    },
+    panelEdicion: () => panelEdicion([
+      {etiqueta:'Tarea', valor:t.tarea, clase:'edit-nombre', onChange: v => { t.tarea = v.trim() || t.tarea; saveTareas(); renderTareasSeguro(); }},
+      {etiqueta:'Frecuencia', valor:t.frecuencia, opciones:['Diaria', ...DIAS_SEMANA].map(d => [d, d === 'Diaria' ? 'Todos los días' : d]), onChange: v => { t.frecuencia = v; saveTareas(); renderTareas(); }},
+      {etiqueta:'Hora límite', tipo:'time', valor:t.horaLimite, onChange: v => { t.horaLimite = v; saveTareas(); renderTareasSeguro(); }},
+      {etiqueta:'Estado', valor:t.estado, opciones:[['Pendiente','Pendiente'],['En curso','En curso'],['Hecho','Hecha']], onChange: v => { t.estado = v; saveTareas(); renderTareas(); }},
+      {etiqueta:'Responsable', valor:t.responsable || '', opciones:OPC_RESP(), onChange: v => { t.responsable = v; saveTareas(); renderTareas(); }},
+      {etiqueta:'Notas', valor:t.notas, wide:true, placeholder:'Una aclaración para el equipo', onChange: v => { t.notas = v; saveTareas(); renderTareasSeguro(); }},
+    ], cerrarEdicion)
+  });
+}
+
+function filaCalendario(c, fecha){
+  const chips = [];
+  if(c.atras > 0 && !c.hecho) chips.push(['time-overdue', 'Atrasada, era para el ' + fechaCorta(c.fechaVenc)]);
+  else if(c.atras > 0) chips.push(['', 'Era para el ' + fechaCorta(c.fechaVenc)]);
+  else chips.push(['day', 'Vence hoy']);
+  return construirFila({
+    clases: (c.atras > 0 && !c.hecho) ? 'is-overdue' : '',
+    hecho: c.hecho, titulo: c.v.tarea, chips,
+    onToggle: () => toggleVencDesdeLista(c.key, fecha),
+  });
+}
+
+function filaExtra(x, fecha, alerta){
+  const chips = [];
+  chips.push(...chipsHora(x.horaLimite, alerta));
+  if(x.creada < fecha && !x.hecha){
+    const [y,m,d] = x.creada.split('-').map(Number);
+    const dia = DIAS_SEMANA[(new Date(y, m-1, d).getDay() + 6) % 7].toLowerCase();
+    chips.push(['carry', 'Viene del ' + dia + ' ' + fechaCorta(x.creada)]);
+  }
+  let clases = '';
+  if(alerta === 'vencido') clases += ' is-overdue';
+  if(alerta === 'porvencer') clases += ' is-soon';
+  return construirFila({
+    clases, hecho: !!x.hecha, titulo: x.tarea, chips, nota: x.notas, responsable: x.responsable || '',
+    editando: tareaEditandoId === x.id,
+    onToggle: () => {
+      x.hecha = !x.hecha;
+      x.hechaFecha = x.hecha ? fecha : '';
+      actualizarExtra(x, {hecha: x.hecha, hechaFecha: x.hechaFecha});
+      renderTareas();
+    },
+    onEditar: () => alternarEdicion(x.id),
+    onBorrar: () => {
+      if(!confirm('¿Eliminar "' + x.tarea + '"?')) return;
+      extras = extras.filter(e => e.id !== x.id);
+      if(tareaEditandoId === x.id) tareaEditandoId = null;
+      borrarExtra(x.id); renderTareas();
+    },
+    panelEdicion: () => panelEdicion([
+      {etiqueta:'Tarea', valor:x.tarea, clase:'edit-nombre', onChange: v => { x.tarea = v.trim() || x.tarea; actualizarExtra(x, {tarea: x.tarea}); renderTareasSeguro(); }},
+      {etiqueta:'Hora límite', tipo:'time', valor:x.horaLimite, onChange: v => { x.horaLimite = v; actualizarExtra(x, {horaLimite: v}); renderTareasSeguro(); }},
+      {etiqueta:'Responsable', valor:x.responsable || '', opciones:OPC_RESP(), onChange: v => { x.responsable = v; actualizarExtra(x, {responsable: v}); renderTareas(); }},
+      {etiqueta:'Notas', valor:x.notas, wide:true, placeholder:'Una aclaración para el equipo', onChange: v => { x.notas = v; actualizarExtra(x, {notas: v}); renderTareasSeguro(); }},
+    ], cerrarEdicion)
+  });
+}
+
+function encabezadoSeccion(titulo, hechas, total, descripcion){
+  const h = crearEl('div', 'task-section-head');
+  const izq = crearEl('div');
+  izq.appendChild(crearEl('div', 'task-section-title', titulo));
+  if(descripcion) izq.appendChild(crearEl('div', 'task-section-desc', descripcion));
+  h.appendChild(izq);
+  if(total > 0) h.appendChild(crearEl('div', 'task-section-count', hechas + ' de ' + total));
+  return h;
+}
+
+function agregarSegmento(cont, estado, titulo){
+  const seg = crearEl('div', 'seg' + (estado ? ' ' + estado : ''));
+  seg.title = titulo;
+  cont.appendChild(seg);
+}
+
 function renderTareas(){
   renderTareasPendiente = false;
+  const quickTeniaFoco = !!(document.activeElement && document.activeElement.classList.contains('quick-add'));
   const fecha = document.getElementById('fechaHoy').value;
   const diaSemana = diaSemanaDeFecha(fecha);
   document.getElementById('diaTexto').textContent = diaSemana ? diaSemana : '';
@@ -1802,50 +1968,114 @@ function renderTareas(){
   const segmentos = document.getElementById('daySegments');
   segmentos.innerHTML = '';
 
-  let hechas = 0, totalHoy = 0, vencidas = 0, visibles = 0;
+  let hechas = 0, total = 0, vencidas = 0;
+  const pasaFiltro = (r) => !filtroResp || (r || '').trim() === filtroResp;
 
+  // --- 1. Todos los días ---
+  const secFijas = crearEl('div', 'task-section');
+  const filasFijas = [];
+  let fijasHechas = 0, fijasTotal = 0;
   tareas.forEach(t => {
     const aplica = diaSemana ? aplicaHoy(t, diaSemana) : true;
     const alerta = aplica ? calcularAlerta(t, fechaEsHoy) : null;
     if(aplica){
-      totalHoy++;
-      if(t.estado === 'Hecho') hechas++;
+      fijasTotal++; total++;
+      if(t.estado === 'Hecho'){ fijasHechas++; hechas++; }
       if(alerta === 'vencido') vencidas++;
-      const seg = crearEl('div', 'seg');
-      if(t.estado === 'Hecho') seg.classList.add('done');
-      else if(alerta === 'vencido') seg.classList.add('overdue');
-      else if(t.estado === 'En curso') seg.classList.add('progress');
-      seg.title = t.tarea + ' — ' + (t.estado === 'Hecho' ? 'hecha' : (alerta === 'vencido' ? 'vencida' : t.estado.toLowerCase()));
-      segmentos.appendChild(seg);
+      agregarSegmento(segmentos, t.estado === 'Hecho' ? 'done' : (alerta === 'vencido' ? 'overdue' : (t.estado === 'En curso' ? 'progress' : '')), t.tarea);
     }
     if(soloHoy && diaSemana && !aplica) return;
-    if(filtroResp && (t.responsable||'').trim() !== filtroResp) return;
-    visibles++;
-    list.appendChild(construirFilaTarea(t, {aplica, alerta, diaSemana}));
+    if(!pasaFiltro(t.responsable)) return;
+    filasFijas.push(filaFija(t, aplica, alerta, diaSemana));
   });
+  secFijas.appendChild(encabezadoSeccion('Todos los días', fijasHechas, fijasTotal));
+  filasFijas.forEach(f => secFijas.appendChild(f));
+  if(filasFijas.length === 0) secFijas.appendChild(crearEl('div', 'task-empty', filtroResp ? ('Ninguna asignada a ' + filtroResp + '.') : 'No hay tareas fijas para este día.'));
+  const addFija = crearEl('button', 'btn ghost-add small', '+ Agregar tarea fija');
+  addFija.addEventListener('click', () => {
+    const nueva = {id: uid(), area:'Operativo', tarea:'Nueva tarea', frecuencia:'Diaria', horario:'', horaLimite:'', estado:'Pendiente', responsable:'', notas:''};
+    tareas.push(nueva);
+    tareaEditandoId = nueva.id;
+    list.dataset.focoNueva = nueva.id;
+    saveTareas();
+    renderTareas();
+  });
+  const pieFijas = crearEl('div', 'task-section-foot');
+  pieFijas.appendChild(addFija);
+  secFijas.appendChild(pieFijas);
 
-  if(visibles === 0){
-    list.appendChild(crearEl('div', 'task-empty', filtroResp ? ('No hay tareas asignadas a ' + filtroResp + ' para este día.') : 'No hay tareas para este día. Agregá una con el botón de abajo.'));
+  // --- 2. Del calendario ---
+  const cal = calendarioParaFecha(fecha);
+  const secCal = crearEl('div', 'task-section');
+  let calHechas = 0;
+  cal.forEach(c => {
+    total++;
+    if(c.hecho){ hechas++; calHechas++; }
+    if(c.atras > 0 && !c.hecho) vencidas++;
+    agregarSegmento(segmentos, c.hecho ? 'done' : (c.atras > 0 ? 'overdue' : ''), c.v.tarea + ' (calendario)');
+  });
+  if(cal.length > 0 && !filtroResp){
+    secCal.appendChild(encabezadoSeccion('Del calendario', calHechas, cal.length, 'Se manejan desde la pestaña Calendario'));
+    cal.forEach(c => secCal.appendChild(filaCalendario(c, fecha)));
   }
 
-  const pendientes = Math.max(totalHoy - hechas, 0);
+  // --- 3. Surgieron en el día ---
+  const ex = extrasParaFecha(fecha);
+  const secEx = crearEl('div', 'task-section');
+  let exHechas = 0;
+  const filasEx = [];
+  ex.forEach(x => {
+    const alerta = calcularAlerta({horaLimite: x.horaLimite, estado: x.hecha ? 'Hecho' : 'Pendiente'}, fechaEsHoy);
+    total++;
+    if(x.hecha){ hechas++; exHechas++; }
+    if(alerta === 'vencido') vencidas++;
+    agregarSegmento(segmentos, x.hecha ? 'done' : (alerta === 'vencido' ? 'overdue' : ''), x.tarea);
+    if(pasaFiltro(x.responsable)) filasEx.push(filaExtra(x, fecha, alerta));
+  });
+  secEx.appendChild(encabezadoSeccion('Surgieron en el día', exHechas, ex.length, 'Siguen apareciendo hasta que se hagan'));
+  const quickWrap = crearEl('div', 'quick-add-wrap');
+  const quick = document.createElement('input');
+  quick.type = 'text';
+  quick.className = 'quick-add';
+  quick.placeholder = 'Anotá algo que surgió y apretá Enter';
+  quick.addEventListener('keydown', (ev) => {
+    if(ev.key !== 'Enter') return;
+    const texto = quick.value.trim();
+    if(!texto) return;
+    const x = {id: uid(), tarea: texto, creada: fecha, creadaTs: new Date().toISOString(), hecha:false, hechaFecha:'', responsable: filtroResp || '', horaLimite:'', notas:''};
+    extras.push(x);
+    quick.value = '';
+    guardarExtra(x);
+    renderTareas();
+  });
+  quickWrap.appendChild(quick);
+  secEx.appendChild(quickWrap);
+  filasEx.forEach(f => secEx.appendChild(f));
+
+  list.appendChild(secFijas);
+  if(secCal.childNodes.length) list.appendChild(secCal);
+  list.appendChild(secEx);
+
+  const pendientes = Math.max(total - hechas, 0);
   document.getElementById('statHecho').textContent = hechas;
-  document.getElementById('statTotal').textContent = totalHoy;
+  document.getElementById('statTotal').textContent = total;
   document.getElementById('statPend').textContent = pendientes;
   document.getElementById('statVenc').textContent = vencidas;
   document.getElementById('statVencBox').classList.toggle('cero', vencidas === 0);
   document.getElementById('dayCaption').textContent =
-    totalHoy === 0 ? 'No hay tareas para este día'
-    : (hechas === totalHoy ? 'Todo hecho por hoy' : (hechas === 1 ? 'tarea hecha hoy' : 'tareas hechas hoy'));
+    total === 0 ? 'No hay tareas para este día'
+    : (hechas === total ? 'Todo hecho por hoy' : (hechas === 1 ? 'tarea hecha hoy' : 'tareas hechas hoy'));
 
   verificarAlertasYNotificar(fecha);
 
-  if(tareaEditandoId){
+  if(quickTeniaFoco){
+    const q = list.querySelector('.quick-add');
+    if(q) q.focus();
+  }
+  if(tareaEditandoId && list.dataset.focoNueva === tareaEditandoId){
     const inp = list.querySelector('.task-row.is-editing .edit-nombre');
-    if(inp && inp.dataset.nueva === undefined && list.dataset.focoNueva === tareaEditandoId){
-      inp.focus(); inp.select();
-      delete list.dataset.focoNueva;
-    }
+    if(inp){ inp.focus(); inp.select(); }
+    delete list.dataset.focoNueva;
   }
 }
 
@@ -1853,14 +2083,6 @@ document.getElementById('tareasList').addEventListener('focusout', () => {
   setTimeout(() => { if(renderTareasPendiente && !hayInputDeTareaEnFoco()) renderTareas(); }, 0);
 });
 
-document.getElementById('addTareaBtn').addEventListener('click', () => {
-  const nueva = {id: uid(), area:'Operativo', tarea:'Nueva tarea', frecuencia:'Diaria', horario:'', horaLimite:'', estado:'Pendiente', responsable:'', notas:''};
-  tareas.push(nueva);
-  tareaEditandoId = nueva.id;
-  document.getElementById('tareasList').dataset.focoNueva = nueva.id;
-  saveTareas();
-  renderTareas();
-});
 
 
 document.getElementById('fechaHoy').addEventListener('change', () => { alertasNotificadas.clear(); renderTareas(); });
@@ -1870,12 +2092,18 @@ document.getElementById('filtroResp').addEventListener('change', renderTareas);
 document.getElementById('resetBtn').addEventListener('click', async () => {
   const fecha = document.getElementById('fechaHoy').value;
   if(!fecha) return;
-  if(!confirm('Esto guarda el estado actual del día en el Historial y reinicia todas las tareas a "Pendiente". ¿Continuar?')) return;
+  if(!confirm('Esto guarda el día en el Historial y deja las tareas de todos los días en pendiente. Las del calendario y las que surgieron siguen como están. ¿Continuar?')) return;
 
   const diaSemana = diaSemanaDeFecha(fecha);
   const detalle = tareas
     .filter(t => aplicaHoy(t, diaSemana))
-    .map(t => ({tarea: t.tarea, area: t.area, estado: t.estado, responsable: t.responsable || ''}));
+    .map(t => ({tarea: t.tarea, area: t.area, estado: t.estado, responsable: t.responsable || '', tipo: 'fija'}));
+  calendarioParaFecha(fecha).forEach(c => {
+    detalle.push({tarea: c.v.tarea, estado: c.hecho ? 'Hecho' : 'Pendiente', responsable: '', tipo: 'calendario'});
+  });
+  extrasParaFecha(fecha).forEach(x => {
+    detalle.push({tarea: x.tarea, estado: x.hecha ? 'Hecho' : 'Pendiente', responsable: x.responsable || '', tipo: 'surgio'});
+  });
   const hechas = detalle.filter(d => d.estado === 'Hecho').length;
 
   const snapshot = {
@@ -2098,7 +2326,8 @@ function renderHistorial(){
     (h.detalle || []).forEach(d => {
       const line = document.createElement('div');
       const resp = d.responsable ? (' — ' + d.responsable) : '';
-      line.textContent = '[' + d.estado + '] ' + d.tarea + resp;
+      const tipoTxt = d.tipo === 'calendario' ? ' (calendario)' : (d.tipo === 'surgio' ? ' (surgió en el día)' : '');
+      line.textContent = '[' + d.estado + '] ' + d.tarea + tipoTxt + resp;
       detail.appendChild(line);
     });
     row.appendChild(detail);
@@ -2186,6 +2415,7 @@ document.getElementById('guardarTodoBtn').addEventListener('click', async () => 
   loadVenc();
   loadHistorial();
   loadBuques();
+  loadExtras();
   loadSidebarInfo();
   actualizarNotifBtn();
   setInterval(renderTareasSeguro, 60000);
