@@ -289,6 +289,34 @@
     .day-figures{justify-content:flex-start;}
     .day-figure{text-align:left;}
   }
+  /* ===== Impresión (todo en negro, pensado para impresora blanco y negro) ===== */
+  #printArea{display:none;}
+  @media print{
+    @page{margin:12mm 12mm 14mm;} /* sin tamaño fijo: usa el papel que elijas al imprimir (Legal, A4, Carta) */
+    body{background:#fff !important;color:#000;}
+    body > *:not(#printArea){display:none !important;}
+    #printArea, #printArea *{color:#000 !important;background:none !important;}
+    #printArea{display:block;font-family:Arial,Helvetica,sans-serif;font-size:11pt;}
+    #printArea .pr-head{border-bottom:2.5px solid #000;padding-bottom:6px;margin-bottom:10px;}
+    #printArea h1{font-size:18pt;font-weight:700;margin:0;}
+    #printArea .pr-sub{display:flex;gap:18px;font-size:10pt;margin-top:3px;}
+    #printArea .pr-section{margin-top:14px;}
+    #printArea h2{font-size:12.5pt;font-weight:700;margin:0 0 4px;}
+    #printArea table{width:100%;border-collapse:collapse;table-layout:fixed;}
+    #printArea thead{display:table-header-group;}
+    #printArea th{font-size:9pt;font-weight:700;text-align:left;padding:3px 6px;border-bottom:1.5px solid #000;position:static;}
+    #printArea td{padding:7px 6px;border-bottom:1px solid #000;vertical-align:middle;font-size:11pt;}
+    #printArea tr{break-inside:avoid;}
+    #printArea .pr-c-task{font-weight:600;}
+    #printArea .pr-c-resp{font-weight:700;}
+    #printArea .pr-c-box{width:30px;}
+    #printArea .pr-c-time{width:76px;}
+    #printArea .pr-c-resp{width:50px;}
+    #printArea .pr-c-obs{width:34%;font-size:10pt;}
+    #printArea .pr-box{display:inline-block;width:14px;height:14px;border:1.5px solid #000;border-radius:2px;text-align:center;line-height:13px;font-size:11pt;font-weight:700;}
+    #printArea tr.pr-done .pr-c-task{text-decoration:line-through;font-weight:400;}
+    #printArea .pr-foot{margin-top:12px;font-size:10pt;}
+  }
   @media (prefers-reduced-motion: reduce){ *{transition:none !important;} }
 </style>
 </head>
@@ -340,6 +368,7 @@
         <label style="margin:0" for="soloHoy">Solo tareas de hoy</label>
       </div>
       <div class="spacer"></div>
+      <button class="btn secondary" id="printBtn" title="Imprime la lista del día que estás viendo">🖨 Imprimir</button>
       <button class="btn warn" id="resetBtn" title="Guarda el día en el Historial y deja todo en pendiente">Cerrar el día</button>
     </div>
 
@@ -475,6 +504,8 @@
     </div>
   </div>
 </div>
+
+<div id="printArea"></div>
 
 <script>
 // --- window.storage conectado a Firebase Firestore ---
@@ -2078,6 +2109,77 @@ function renderTareas(){
     delete list.dataset.focoNueva;
   }
 }
+
+// ===== Imprimir la lista del día =====
+function imprimirLista(){
+  const fecha = document.getElementById('fechaHoy').value;
+  if(!fecha) return;
+  const diaSemana = diaSemanaDeFecha(fecha);
+  const filtroResp = document.getElementById('filtroResp').value;
+  const pasaFiltro = (r) => !filtroResp || (r || '').trim() === filtroResp;
+  const [y,m,d] = fecha.split('-').map(Number);
+  const ahora = new Date();
+  const horaImpresion = String(ahora.getHours()).padStart(2,'0') + ':' + String(ahora.getMinutes()).padStart(2,'0');
+
+  const secciones = [];
+  secciones.push({titulo: 'Todos los días', items: tareas
+    .filter(t => (diaSemana ? aplicaHoy(t, diaSemana) : true) && pasaFiltro(t.responsable))
+    .map(t => ({texto: t.tarea, hecho: t.estado === 'Hecho', enCurso: t.estado === 'En curso', hora: t.horaLimite || '', resp: t.responsable || '', nota: t.notas || ''}))});
+  if(!filtroResp){
+    secciones.push({titulo: 'Del calendario', items: calendarioParaFecha(fecha)
+      .map(c => ({texto: c.v.tarea, hecho: c.hecho, hora: '', resp: '', nota: c.atras > 0 ? ('Era para el ' + fechaCorta(c.fechaVenc)) : ''}))});
+  }
+  secciones.push({titulo: 'Surgieron en el día', items: extrasParaFecha(fecha)
+    .filter(x => pasaFiltro(x.responsable))
+    .map(x => ({texto: x.tarea, hecho: !!x.hecha, hora: x.horaLimite || '', resp: x.responsable || '',
+      nota: [x.creada < fecha && !x.hecha ? ('Viene del ' + fechaCorta(x.creada)) : '', x.notas || ''].filter(Boolean).join('. ')}))});
+
+  const area = document.getElementById('printArea');
+  area.innerHTML = '';
+  const head = crearEl('div', 'pr-head');
+  head.appendChild(crearEl('h1', '', 'Tareas del ' + (diaSemana ? diaSemana.toLowerCase() + ' ' : '') + d + '/' + m + '/' + y));
+  const sub = crearEl('div', 'pr-sub');
+  sub.appendChild(crearEl('span', '', 'Servicios Portuarios S.A.'));
+  if(filtroResp) sub.appendChild(crearEl('span', '', 'Responsable: ' + filtroResp));
+  sub.appendChild(crearEl('span', '', 'Impreso a las ' + horaImpresion));
+  head.appendChild(sub);
+  area.appendChild(head);
+
+  let total = 0, hechas = 0;
+  secciones.forEach(sec => {
+    if(sec.items.length === 0) return;
+    const bloque = crearEl('div', 'pr-section');
+    bloque.appendChild(crearEl('h2', '', sec.titulo));
+    const tabla = document.createElement('table');
+    const thead = document.createElement('thead');
+    const trh = document.createElement('tr');
+    [['', 'pr-c-box'], ['Tarea', 'pr-c-task'], ['Hora límite', 'pr-c-time'], ['Resp.', 'pr-c-resp'], ['Observaciones', 'pr-c-obs']].forEach(([txt, cls]) => trh.appendChild(crearEl('th', cls, txt)));
+    thead.appendChild(trh);
+    tabla.appendChild(thead);
+    const tbody = document.createElement('tbody');
+    sec.items.forEach(it => {
+      total++; if(it.hecho) hechas++;
+      const tr = document.createElement('tr');
+      if(it.hecho) tr.className = 'pr-done';
+      const tdBox = crearEl('td', 'pr-c-box');
+      tdBox.appendChild(crearEl('span', 'pr-box', it.hecho ? '✓' : (it.enCurso ? '½' : '')));
+      tr.appendChild(tdBox);
+      tr.appendChild(crearEl('td', 'pr-c-task', it.texto));
+      tr.appendChild(crearEl('td', 'pr-c-time', it.hora));
+      tr.appendChild(crearEl('td', 'pr-c-resp', it.resp));
+      tr.appendChild(crearEl('td', 'pr-c-obs', it.nota));
+      tbody.appendChild(tr);
+    });
+    tabla.appendChild(tbody);
+    bloque.appendChild(tabla);
+    area.appendChild(bloque);
+  });
+  if(total === 0) area.appendChild(crearEl('p', '', 'No hay tareas para este día.'));
+  else area.appendChild(crearEl('div', 'pr-foot', hechas + ' de ' + total + ' tareas hechas al momento de imprimir.'));
+
+  window.print();
+}
+document.getElementById('printBtn').addEventListener('click', imprimirLista);
 
 document.getElementById('tareasList').addEventListener('focusout', () => {
   setTimeout(() => { if(renderTareasPendiente && !hayInputDeTareaEnFoco()) renderTareas(); }, 0);
