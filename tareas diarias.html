@@ -155,10 +155,10 @@
 
   .task-edit{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:10px 12px;padding:4px 14px 14px 72px;}
   .task-edit .f{display:flex;flex-direction:column;gap:4px;}
-  .task-edit .f.wide{grid-column:1 / -2;}
+  .task-edit .f.wide{grid-column:1 / -1;}
   .task-edit label{font-size:12px;margin:0;}
   .task-edit input, .task-edit select{width:100%;font-size:13.5px;}
-  .task-edit .edit-done{align-self:end;}
+  .task-edit .edit-actions{grid-column:1 / -1;display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;}
   .task-empty{padding:28px;text-align:center;color:var(--text-muted);font-size:13px;}
   .task-footer{padding:10px 10px 0;}
 
@@ -176,6 +176,23 @@
   .quick-add-wrap{padding:0 12px 8px;}
   .quick-add{width:100%;font-size:14px !important;padding:10px 12px !important;border:1px dashed var(--border-strong) !important;background:var(--card-2) !important;}
   .quick-add:focus{border-style:solid !important;border-color:var(--blue) !important;background:var(--card) !important;}
+
+
+  .quick-add-wrap{display:flex;gap:8px;align-items:stretch;}
+  .quick-add-wrap .quick-add{flex:1;min-width:0;}
+  .quick-add-para{display:flex;align-items:center;gap:6px;margin:0;font-size:12.5px;color:var(--text-muted);white-space:nowrap;}
+  .quick-add-fecha{font-size:13px !important;padding:6px 8px !important;}
+  .programadas-toggle{background:none;border:none;color:var(--text-muted);font-size:12.5px;cursor:pointer;padding:8px 12px 4px;font-weight:500;}
+  .programadas-toggle:hover{color:var(--text);}
+  .programadas-list{background:var(--card-2);border-radius:8px;margin:4px 8px 0;}
+  .buque-mini .buque-num{color:var(--text-muted);font-weight:500;margin-left:8px;font-size:13px;}
+  .mini-prog{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;width:120px;}
+  .mini-bar{width:100%;height:6px;border-radius:3px;background:var(--seg-empty);overflow:hidden;}
+  .mini-fill{height:100%;background:var(--blue);border-radius:3px;}
+  .mini-fill.completo{background:var(--green);}
+  .mini-num{font-size:12px;color:var(--text-muted);font-variant-numeric:tabular-nums;}
+  .chip.mini-ok{background:var(--green-bg);color:var(--green-text);}
+  .buque-card.resaltado{box-shadow:0 0 0 3px var(--blue);transition:box-shadow .3s;}
 
   /* ===== Botones ===== */
   .del-btn{background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;padding:2px 6px;border-radius:6px;}
@@ -703,8 +720,16 @@ function loadTareas(){
   let inicializando = false;
   suscribirseADoc('tareas-diarias', async (value) => {
     if(value){
-      tareas = JSON.parse(value);
-      tareas.forEach(t => { if(t.horaLimite === undefined) t.horaLimite = ''; });
+      const nuevas = JSON.parse(value);
+      tareas = nuevas.map(n => {
+        if(n.horaLimite === undefined) n.horaLimite = '';
+        const existente = tareas.find(t => t.id === n.id);
+        if(existente){
+          Object.keys(existente).forEach(k => { if(!(k in n)) delete existente[k]; });
+          return Object.assign(existente, n);
+        }
+        return n;
+      });
     } else if(!inicializando){
       inicializando = true;
       tareas = DEFAULT_TAREAS.map(t => ({id: uid(), ...t}));
@@ -1110,6 +1135,7 @@ function loadBuques(){
     buques = nuevos;
     buquesCargados = true;
     document.getElementById('buqueLoading').style.display = 'none';
+    renderTareasSeguro(); // actualiza el resumen de buques en Tareas de hoy
     // Si estás escribiendo en una observación, no se repinta hasta que salgas del campo
     if(hayInputDeBuqueEnFoco()){ renderBuquesPendiente = true; return; }
     renderBuques();
@@ -1198,6 +1224,7 @@ function renderBuques(){
 
 function construirTarjetaBuque(b, esArchivado){
     const card = document.createElement('div');
+    card.dataset.buqueId = b.id;
     const itemsFijosVisibles = BUQUE_ITEMS.filter(it => !b.itemsOcultos.includes(it.key));
     function recalcularProgreso(){
       const total = itemsFijosVisibles.length + b.itemsExtra.length;
@@ -1665,6 +1692,9 @@ function reordenarTarea(dragId, targetId, insertAfter){
 
 let tareaEditandoId = null;
 let renderTareasPendiente = false;
+let borradorQuickAdd = '';
+let fechaQuickAdd = ''; // fecha elegida en "Para el" (vacío = el día que estás viendo)
+let programadasAbiertas = false; // lo que está escrito en "Anotá algo que surgió", para no perderlo si la lista se refresca
 const COLORES_RESP = ['#2F62C8','#1F8A4C','#B4541F','#7A4FC2','#0E8A8A','#B83265'];
 const DIAS_ATRAS_CALENDARIO = 15; // cuántos días hacia atrás se buscan tareas del calendario sin tildar
 
@@ -1849,7 +1879,7 @@ function chipsHora(horaLimite, alerta){
 }
 
 // ===== Panel de edición =====
-function panelEdicion(campos, onListo){
+function panelEdicion(campos, onListo, acciones){
   const panel = crearEl('div', 'task-edit');
   campos.forEach(c => {
     const f = crearEl('div', 'f' + (c.wide ? ' wide' : ''));
@@ -1874,10 +1904,122 @@ function panelEdicion(campos, onListo){
     f.appendChild(ctrl);
     panel.appendChild(f);
   });
+  const pie = crearEl('div', 'edit-actions');
+  (acciones || []).forEach(a => {
+    const btn = crearEl('button', 'btn secondary', a.texto);
+    if(a.titulo) btn.title = a.titulo;
+    btn.addEventListener('click', a.onClick);
+    pie.appendChild(btn);
+  });
   const listo = crearEl('button', 'btn edit-done', 'Listo');
   listo.addEventListener('click', onListo);
-  panel.appendChild(listo);
+  pie.appendChild(listo);
+  panel.appendChild(pie);
   return panel;
+}
+
+// ===== Mover tareas entre "Todos los días" y "Surgieron en el día" =====
+function pasarFijaASurgio(t){
+  if(!confirm('¿Pasar "' + t.tarea + '" a "Surgieron en el día"?\n\nDeja de repetirse todos los días y queda como tarea de una sola vez: sigue apareciendo hasta que alguien la tilde.')) return;
+  const fecha = document.getElementById('fechaHoy').value;
+  const hecha = t.estado === 'Hecho';
+  const x = {id: uid(), tarea: t.tarea, creada: fecha, creadaTs: new Date().toISOString(), hecha, hechaFecha: hecha ? fecha : '', responsable: t.responsable || '', horaLimite: t.horaLimite || '', notas: t.notas || ''};
+  extras.push(x);
+  guardarExtra(x);
+  tareas = tareas.filter(y => y.id !== t.id);
+  tareaEditandoId = null;
+  saveTareas();
+  renderTareas();
+}
+
+function pasarSurgioAFija(x){
+  if(!confirm('¿Pasar "' + x.tarea + '" a "Todos los días"?\n\nVa a aparecer todos los días como tarea fija. Después podés cambiarle la frecuencia (por ejemplo, solo los jueves).')) return;
+  const nueva = {id: uid(), area:'Operativo', tarea: x.tarea, frecuencia:'Diaria', horario:'', horaLimite: x.horaLimite || '', estado: x.hecha ? 'Hecho' : 'Pendiente', responsable: x.responsable || '', notas: x.notas || ''};
+  tareas.push(nueva);
+  saveTareas();
+  extras = extras.filter(e => e.id !== x.id);
+  borrarExtra(x.id);
+  tareaEditandoId = nueva.id; // queda abierta para ajustarle la frecuencia si hace falta
+  renderTareas();
+}
+
+// ===== Buques en curso (resumen dentro de Tareas de hoy) =====
+function progresoBuque(b){
+  const items = b.items || {};
+  const ocultos = new Set(b.itemsOcultos || []);
+  const extrasB = b.itemsExtra || [];
+  const fijos = BUQUE_ITEMS.filter(it => !ocultos.has(it.key));
+  const total = fijos.length + extrasB.length;
+  const hechos = fijos.filter(it => items[it.key] && items[it.key].recibido).length + extrasB.filter(it => it.recibido).length;
+  // Próximo pendiente siguiendo el orden propio del buque
+  let orden = (b.ordenItems && b.ordenItems.length) ? b.ordenItems : fijos.map(it => it.key).concat(extrasB.map(it => it.id));
+  const porKey = {}; fijos.forEach(it => { porKey[it.key] = it; });
+  const porExtra = {}; extrasB.forEach(it => { porExtra[it.id] = it; });
+  let proximo = '';
+  for(const id of orden){
+    if(porKey[id] && !(items[id] && items[id].recibido)){ proximo = porKey[id].label; break; }
+    if(porExtra[id] && !porExtra[id].recibido){ proximo = porExtra[id].label; break; }
+  }
+  const zarpo = !!(items.zarpo && items.zarpo.recibido);
+  return {total, hechos, proximo, atrasado: zarpo && hechos < total};
+}
+
+function irABuque(id){
+  if(buquesColapsados.has(id)){ buquesColapsados.delete(id); guardarColapso(); }
+  const buscador = document.getElementById('buqueSearchInput');
+  if(buscador.value){ buscador.value = ''; }
+  document.querySelector('.tab-btn[data-tab="buque"]').click();
+  renderBuques();
+  const card = document.querySelector('.buque-card[data-buque-id="' + id + '"]');
+  if(card){
+    card.scrollIntoView({behavior:'smooth', block:'start'});
+    card.classList.add('resaltado');
+    setTimeout(() => card.classList.remove('resaltado'), 1800);
+  }
+}
+
+function construirSeccionBuques(){
+  const activos = buques.filter(b => !b.archivado);
+  if(activos.length === 0) return null;
+  const sec = crearEl('div', 'task-section');
+  const atrasados = activos.filter(b => progresoBuque(b).atrasado).length;
+  sec.appendChild(encabezadoSeccion('Buques en curso', 0, 0, atrasados ? (atrasados === 1 ? '1 zarpó con trámites pendientes' : atrasados + ' zarparon con trámites pendientes') : 'Tocá un buque para ir a su checklist'));
+  activos.forEach(b => {
+    const pr = progresoBuque(b);
+    const row = crearEl('div', 'task-row buque-mini' + (pr.atrasado ? ' is-overdue' : ''));
+    const main = crearEl('div', 'task-main');
+    main.appendChild(crearEl('span', 'drag-handle drag-space', ''));
+    const body = crearEl('div', 'task-body');
+    const titulo = crearEl('div', 'task-title', 'MV ' + (b.nombre || 'sin nombre'));
+    if(b.numero){ titulo.appendChild(crearEl('span', 'buque-num', 'N° ' + b.numero)); }
+    body.appendChild(titulo);
+    const meta = crearEl('div', 'task-meta');
+    if(pr.atrasado) meta.appendChild(crearEl('span', 'chip time-overdue', 'Zarpó con trámites pendientes'));
+    if(b.unidad) meta.appendChild(crearEl('span', 'chip', 'Unidad ' + b.unidad));
+    if(pr.proximo && pr.hechos < pr.total) meta.appendChild(crearEl('span', 'task-note mini-next', 'Próximo: ' + pr.proximo));
+    else if(pr.total) meta.appendChild(crearEl('span', 'chip mini-ok', 'Checklist completo'));
+    body.appendChild(meta);
+    body.title = 'Ir al checklist del buque';
+    body.addEventListener('click', () => irABuque(b.id));
+    main.appendChild(body);
+    const prog = crearEl('div', 'mini-prog');
+    const bar = crearEl('div', 'mini-bar');
+    const fill = crearEl('div', 'mini-fill' + (pr.hechos === pr.total ? ' completo' : ''));
+    fill.style.width = (pr.total ? Math.round(pr.hechos / pr.total * 100) : 0) + '%';
+    bar.appendChild(fill);
+    prog.appendChild(bar);
+    prog.appendChild(crearEl('div', 'mini-num', pr.hechos + ' de ' + pr.total));
+    main.appendChild(prog);
+    const ir = crearEl('button', 'icon-btn', '→');
+    ir.title = 'Ir al checklist del buque';
+    ir.addEventListener('click', () => irABuque(b.id));
+    const acts = crearEl('div', 'task-actions');
+    acts.appendChild(ir);
+    main.appendChild(acts);
+    row.appendChild(main);
+    sec.appendChild(row);
+  });
+  return sec;
 }
 
 const OPC_RESP = () => [['', 'Sin asignar'], ...RESPONSABLES.map(r => [r, r])];
@@ -1914,7 +2056,7 @@ function filaFija(t, aplica, alerta, diaSemana){
       {etiqueta:'Estado', valor:t.estado, opciones:[['Pendiente','Pendiente'],['En curso','En curso'],['Hecho','Hecha']], onChange: v => { t.estado = v; saveTareas(); renderTareas(); }},
       {etiqueta:'Responsable', valor:t.responsable || '', opciones:OPC_RESP(), onChange: v => { t.responsable = v; saveTareas(); renderTareas(); }},
       {etiqueta:'Notas', valor:t.notas, wide:true, placeholder:'Una aclaración para el equipo', onChange: v => { t.notas = v; saveTareas(); renderTareasSeguro(); }},
-    ], cerrarEdicion)
+    ], cerrarEdicion, [{texto: 'Pasar a "Surgieron en el día"', titulo: 'Para algo que se hace una sola vez: deja de repetirse todos los días', onClick: () => pasarFijaASurgio(t)}])
   });
 }
 
@@ -1933,6 +2075,11 @@ function filaCalendario(c, fecha){
 function filaExtra(x, fecha, alerta){
   const chips = [];
   chips.push(...chipsHora(x.horaLimite, alerta));
+  if(x.creada > fecha){
+    const [y2,m2,d2] = x.creada.split('-').map(Number);
+    const dia2 = DIAS_SEMANA[(new Date(y2, m2-1, d2).getDay() + 6) % 7].toLowerCase();
+    chips.push(['day', 'Para el ' + dia2 + ' ' + fechaCorta(x.creada)]);
+  }
   if(x.creada < fecha && !x.hecha){
     const [y,m,d] = x.creada.split('-').map(Number);
     const dia = DIAS_SEMANA[(new Date(y, m-1, d).getDay() + 6) % 7].toLowerCase();
@@ -1959,10 +2106,11 @@ function filaExtra(x, fecha, alerta){
     },
     panelEdicion: () => panelEdicion([
       {etiqueta:'Tarea', valor:x.tarea, clase:'edit-nombre', onChange: v => { x.tarea = v.trim() || x.tarea; actualizarExtra(x, {tarea: x.tarea}); renderTareasSeguro(); }},
+      {etiqueta:'Aparece desde el', tipo:'date', valor:x.creada, onChange: v => { if(!v) return; x.creada = v; actualizarExtra(x, {creada: v}); renderTareasSeguro(); }},
       {etiqueta:'Hora límite', tipo:'time', valor:x.horaLimite, onChange: v => { x.horaLimite = v; actualizarExtra(x, {horaLimite: v}); renderTareasSeguro(); }},
       {etiqueta:'Responsable', valor:x.responsable || '', opciones:OPC_RESP(), onChange: v => { x.responsable = v; actualizarExtra(x, {responsable: v}); renderTareas(); }},
       {etiqueta:'Notas', valor:x.notas, wide:true, placeholder:'Una aclaración para el equipo', onChange: v => { x.notas = v; actualizarExtra(x, {notas: v}); renderTareasSeguro(); }},
-    ], cerrarEdicion)
+    ], cerrarEdicion, [{texto: 'Pasar a "Todos los días"', titulo: 'Para algo que se repite: pasa a ser una tarea fija', onClick: () => pasarSurgioAFija(x)}])
   });
 }
 
@@ -2066,27 +2214,60 @@ function renderTareas(){
   });
   secEx.appendChild(encabezadoSeccion('Surgieron en el día', exHechas, ex.length, 'Siguen apareciendo hasta que se hagan'));
   const quickWrap = crearEl('div', 'quick-add-wrap');
+  const quickFecha = document.createElement('input');
+  quickFecha.type = 'date';
+  quickFecha.className = 'quick-add-fecha';
+  quickFecha.title = 'Día en que tiene que aparecer (por defecto, el día que estás viendo)';
+  quickFecha.value = fechaQuickAdd || fecha;
+  quickFecha.addEventListener('change', () => { fechaQuickAdd = (quickFecha.value && quickFecha.value !== fecha) ? quickFecha.value : ''; });
+  const quickFechaWrap = crearEl('label', 'quick-add-para');
+  quickFechaWrap.appendChild(crearEl('span', '', 'Para el'));
+  quickFechaWrap.appendChild(quickFecha);
   const quick = document.createElement('input');
   quick.type = 'text';
   quick.className = 'quick-add';
   quick.placeholder = 'Anotá algo que surgió y apretá Enter';
+  quick.value = borradorQuickAdd;
+  quick.addEventListener('input', () => { borradorQuickAdd = quick.value; });
   quick.addEventListener('keydown', (ev) => {
-    if(ev.key !== 'Enter') return;
+    if(ev.key !== 'Enter' && ev.key !== 'Tab') return;
     const texto = quick.value.trim();
-    if(!texto) return;
-    const x = {id: uid(), tarea: texto, creada: fecha, creadaTs: new Date().toISOString(), hecha:false, hechaFecha:'', responsable: filtroResp || '', horaLimite:'', notas:''};
+    if(!texto) return; // Tab con el campo vacío: se mueve al siguiente campo normalmente
+    ev.preventDefault();
+    const para = fechaQuickAdd || fecha;
+    const x = {id: uid(), tarea: texto, creada: para, creadaTs: new Date().toISOString(), hecha:false, hechaFecha:'', responsable: filtroResp || '', horaLimite:'', notas:''};
     extras.push(x);
     quick.value = '';
+    borradorQuickAdd = '';
+    fechaQuickAdd = '';
+    if(para > fecha) programadasAbiertas = true; // que se vea que quedó programada
     guardarExtra(x);
     renderTareas();
   });
   quickWrap.appendChild(quick);
+  quickWrap.appendChild(quickFechaWrap);
   secEx.appendChild(quickWrap);
   filasEx.forEach(f => secEx.appendChild(f));
+
+  // Programadas para días siguientes
+  const futuras = extras.filter(x => !x.hecha && x.creada > fecha && pasaFiltro(x.responsable))
+    .sort((a, b) => a.creada.localeCompare(b.creada));
+  if(futuras.length){
+    const toggle = crearEl('button', 'programadas-toggle', (programadasAbiertas ? '▾ ' : '▸ ') + 'Programadas para más adelante (' + futuras.length + ')');
+    toggle.addEventListener('click', () => { programadasAbiertas = !programadasAbiertas; renderTareas(); });
+    secEx.appendChild(toggle);
+    if(programadasAbiertas){
+      const cont = crearEl('div', 'programadas-list');
+      futuras.forEach(x => cont.appendChild(filaExtra(x, fecha, null)));
+      secEx.appendChild(cont);
+    }
+  }
 
   list.appendChild(secFijas);
   if(secCal.childNodes.length) list.appendChild(secCal);
   list.appendChild(secEx);
+  const secBuques = construirSeccionBuques();
+  if(secBuques) list.appendChild(secBuques);
 
   const pendientes = Math.max(total - hechas, 0);
   document.getElementById('statHecho').textContent = hechas;
