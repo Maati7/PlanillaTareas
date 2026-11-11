@@ -182,6 +182,26 @@
   .quick-add-wrap .quick-add{flex:1;min-width:0;}
   .quick-add-para{display:flex;align-items:center;gap:6px;margin:0;font-size:12.5px;color:var(--text-muted);white-space:nowrap;}
   .quick-add-fecha{font-size:13px !important;padding:6px 8px !important;}
+  /* ===== Anotador de tareas ===== */
+  .composer{margin:4px 8px 12px;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--card-2);}
+  .composer-top{display:flex;gap:8px;}
+  .composer-top .quick-add{flex:1;min-width:0;}
+  .composer-tipos{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;}
+  .tipo-btn{border:1px solid var(--border-strong);background:var(--card);color:var(--text-muted);border-radius:999px;padding:5px 12px;font-size:12.5px;font-weight:500;cursor:pointer;}
+  .tipo-btn:hover{color:var(--text);border-color:var(--blue);}
+  .tipo-btn.on{background:var(--blue);border-color:var(--blue);color:#fff;}
+  .tipo-btn.on.fija{background:var(--navy-2);border-color:var(--navy-2);}
+  .composer-opts{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:10px;}
+  .composer-opts label{display:flex;align-items:center;gap:6px;margin:0;font-size:12.5px;color:var(--text-muted);white-space:nowrap;}
+  .composer-opts input, .composer-opts select{font-size:13px !important;padding:5px 8px !important;}
+  .composer-hint{margin-top:8px;font-size:12px;color:var(--text-muted);}
+  .composer-hint.fija{color:var(--yellow-text);}
+  .composer-error{margin-top:6px;font-size:12px;color:var(--red-text);}
+  .chip.temp{background:var(--yellow-bg);color:var(--yellow-text);}
+  .task-row.recien{animation:recien 1.6s ease-out;}
+  @keyframes recien{0%{background:var(--blue-light);}100%{background:transparent;}}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);opacity:0;background:var(--navy);color:#fff;padding:11px 16px;border-radius:10px;font-size:13.5px;box-shadow:0 6px 24px rgba(0,0,0,.2);transition:opacity .25s, transform .25s;z-index:200;max-width:calc(100% - 32px);}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
   .programadas-toggle{background:none;border:none;color:var(--text-muted);font-size:12.5px;cursor:pointer;padding:8px 12px 4px;font-weight:500;}
   .programadas-toggle:hover{color:var(--text);}
   .programadas-list{background:var(--card-2);border-radius:8px;margin:4px 8px 0;}
@@ -387,7 +407,7 @@
       </div>
       <div class="spacer"></div>
       <button class="btn secondary" id="printBtn" title="Imprime la lista del día que estás viendo">🖨 Imprimir</button>
-      <button class="btn warn" id="resetBtn" title="Guarda el día en el Historial y deja todo en pendiente">Cerrar el día</button>
+      <button class="btn warn" id="resetBtn" title="Se hace solo al empezar el día siguiente. Usalo si querés cerrar antes.">Cerrar el día</button>
     </div>
 
     <div class="card day-board">
@@ -459,7 +479,7 @@
   <div class="panel" id="panel-historial">
     <div class="card">
       <div id="histLoading" class="loading">Cargando historial...</div>
-      <div id="histEmpty" class="loading" style="display:none">Todavía no hay días guardados. Usá "Reiniciar estados de hoy" al cerrar el día para que quede registrado acá.</div>
+      <div id="histEmpty" class="loading" style="display:none">Todavía no hay días guardados. Cada día se guarda solo acá cuando empieza el siguiente (o antes, si apretás "Cerrar el día").</div>
       <div id="histList"></div>
     </div>
   </div>
@@ -524,6 +544,7 @@
 </div>
 
 <div id="printArea"></div>
+<div class="toast" id="toast"></div>
 
 <script>
 // --- window.storage conectado a Firebase Firestore ---
@@ -739,6 +760,7 @@ function loadTareas(){
     document.getElementById('tareasLoading').style.display = 'none';
     document.getElementById('tareasList').style.display = 'flex';
     renderTareasSeguro();
+    marcarDatoListo('tareas');
   });
 }
 
@@ -767,6 +789,7 @@ function loadVenc(){
       return;
     }
     mostrarCalendarioSiListo();
+    marcarDatoListo('venc');
   });
   suscribirseADoc('vencimientos-completados', (value) => {
     vencCompletados = value ? JSON.parse(value) : {};
@@ -815,6 +838,7 @@ function loadHistorial(){
     historial = value ? JSON.parse(value) : [];
     document.getElementById('histLoading').style.display = 'none';
     renderHistorial();
+    marcarDatoListo('hist');
   });
 }
 
@@ -1745,12 +1769,40 @@ function loadExtras(){
     lista.sort((a, b) => (a.creadaTs || '').localeCompare(b.creadaTs || ''));
     extras = lista;
     renderTareasSeguro();
+    marcarDatoListo('extras');
   }, err => console.error('Error de sincronización en tareas del día', err));
 }
 
-// Se ven el día que se cargaron y todos los siguientes hasta que alguien las tilde
+// Dos tipos:
+//  - De una vez (sin "hasta"): se ven desde el día que se cargaron hasta que alguien las tilde.
+//  - Temporales (con "hasta"): se ven todos los días entre "creada" y "hasta", y se tildan día por día.
+function extraEsTemporal(x){ return !!x.hasta; }
+function extraHechaEn(x, fecha){
+  if(extraEsTemporal(x)) return !!(x.hechoDias && x.hechoDias[fecha]);
+  return !!x.hecha;
+}
 function extrasParaFecha(fecha){
-  return extras.filter(x => x.creada <= fecha && (!x.hecha || x.hechaFecha === fecha));
+  return extras.filter(x => {
+    if(x.creada > fecha) return false;
+    if(extraEsTemporal(x)) return fecha <= x.hasta;
+    return !x.hecha || x.hechaFecha === fecha;
+  });
+}
+function sumarDias(fechaStr, n){
+  const [y,m,d] = fechaStr.split('-').map(Number);
+  return fechaStrDe(new Date(y, m-1, d + n));
+}
+function diaYFecha(fechaStr){
+  const [y,m,d] = fechaStr.split('-').map(Number);
+  return DIAS_SEMANA[(new Date(y, m-1, d).getDay() + 6) % 7].toLowerCase() + ' ' + d + '/' + m;
+}
+let toastTimer = null;
+function mostrarAviso(texto){
+  const t = document.getElementById('toast');
+  t.textContent = texto;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 5000);
 }
 
 // ===== Tareas del calendario que corresponden a una fecha (incluye atrasadas sin tildar) =====
@@ -1934,7 +1986,7 @@ function pasarFijaASurgio(t){
 
 function pasarSurgioAFija(x){
   if(!confirm('¿Pasar "' + x.tarea + '" a "Todos los días"?\n\nVa a aparecer todos los días como tarea fija. Después podés cambiarle la frecuencia (por ejemplo, solo los jueves).')) return;
-  const nueva = {id: uid(), area:'Operativo', tarea: x.tarea, frecuencia:'Diaria', horario:'', horaLimite: x.horaLimite || '', estado: x.hecha ? 'Hecho' : 'Pendiente', responsable: x.responsable || '', notas: x.notas || ''};
+  const nueva = {id: uid(), area:'Operativo', tarea: x.tarea, frecuencia:'Diaria', horario:'', horaLimite: x.horaLimite || '', estado: extraHechaEn(x, document.getElementById('fechaHoy').value) ? 'Hecho' : 'Pendiente', responsable: x.responsable || '', notas: x.notas || ''};
   tareas.push(nueva);
   saveTareas();
   extras = extras.filter(e => e.id !== x.id);
@@ -2074,13 +2126,20 @@ function filaCalendario(c, fecha){
 
 function filaExtra(x, fecha, alerta){
   const chips = [];
+  const temporal = extraEsTemporal(x);
+  const hechaHoy = extraHechaEn(x, fecha);
+  if(temporal){
+    if(x.creada > fecha) chips.push(['temp', 'Del ' + fechaCorta(x.creada) + ' al ' + fechaCorta(x.hasta)]);
+    else if(x.hasta === fecha) chips.push(['temp', 'Último día']);
+    else chips.push(['temp', 'Todos los días hasta el ' + diaYFecha(x.hasta)]);
+  }
   chips.push(...chipsHora(x.horaLimite, alerta));
-  if(x.creada > fecha){
+  if(x.creada > fecha && !temporal){
     const [y2,m2,d2] = x.creada.split('-').map(Number);
     const dia2 = DIAS_SEMANA[(new Date(y2, m2-1, d2).getDay() + 6) % 7].toLowerCase();
     chips.push(['day', 'Para el ' + dia2 + ' ' + fechaCorta(x.creada)]);
   }
-  if(x.creada < fecha && !x.hecha){
+  if(x.creada < fecha && !x.hecha && !temporal){
     const [y,m,d] = x.creada.split('-').map(Number);
     const dia = DIAS_SEMANA[(new Date(y, m-1, d).getDay() + 6) % 7].toLowerCase();
     chips.push(['carry', 'Viene del ' + dia + ' ' + fechaCorta(x.creada)]);
@@ -2088,13 +2147,20 @@ function filaExtra(x, fecha, alerta){
   let clases = '';
   if(alerta === 'vencido') clases += ' is-overdue';
   if(alerta === 'porvencer') clases += ' is-soon';
+  if(x.id === ultimaAnotadaId) clases += ' recien';
   return construirFila({
-    clases, hecho: !!x.hecha, titulo: x.tarea, chips, nota: x.notas, responsable: x.responsable || '',
+    clases, hecho: hechaHoy, titulo: x.tarea, chips, nota: x.notas, responsable: x.responsable || '',
     editando: tareaEditandoId === x.id,
     onToggle: () => {
-      x.hecha = !x.hecha;
-      x.hechaFecha = x.hecha ? fecha : '';
-      actualizarExtra(x, {hecha: x.hecha, hechaFecha: x.hechaFecha});
+      if(temporal){
+        x.hechoDias = Object.assign({}, x.hechoDias);
+        if(hechaHoy) delete x.hechoDias[fecha]; else x.hechoDias[fecha] = true;
+        actualizarExtra(x, {hechoDias: x.hechoDias});
+      } else {
+        x.hecha = !x.hecha;
+        x.hechaFecha = x.hecha ? fecha : '';
+        actualizarExtra(x, {hecha: x.hecha, hechaFecha: x.hechaFecha});
+      }
       renderTareas();
     },
     onEditar: () => alternarEdicion(x.id),
@@ -2106,12 +2172,123 @@ function filaExtra(x, fecha, alerta){
     },
     panelEdicion: () => panelEdicion([
       {etiqueta:'Tarea', valor:x.tarea, clase:'edit-nombre', onChange: v => { x.tarea = v.trim() || x.tarea; actualizarExtra(x, {tarea: x.tarea}); renderTareasSeguro(); }},
-      {etiqueta:'Aparece desde el', tipo:'date', valor:x.creada, onChange: v => { if(!v) return; x.creada = v; actualizarExtra(x, {creada: v}); renderTareasSeguro(); }},
+      {etiqueta:'Aparece desde el', tipo:'date', valor:x.creada, onChange: v => { if(!v) return; x.creada = v; if(x.hasta && x.hasta < v){ x.hasta = v; } actualizarExtra(x, {creada: v, hasta: x.hasta || ''}); renderTareas(); }},
+      {etiqueta:'Se repite todos los días hasta el', tipo:'date', valor:x.hasta || '', onChange: v => {
+        if(v && v < x.creada){ alert('La fecha "hasta" no puede ser anterior a la de inicio (' + fechaCorta(x.creada) + ').'); renderTareas(); return; }
+        x.hasta = v || '';
+        actualizarExtra(x, {hasta: x.hasta}); renderTareas();
+      }},
       {etiqueta:'Hora límite', tipo:'time', valor:x.horaLimite, onChange: v => { x.horaLimite = v; actualizarExtra(x, {horaLimite: v}); renderTareasSeguro(); }},
       {etiqueta:'Responsable', valor:x.responsable || '', opciones:OPC_RESP(), onChange: v => { x.responsable = v; actualizarExtra(x, {responsable: v}); renderTareas(); }},
       {etiqueta:'Notas', valor:x.notas, wide:true, placeholder:'Una aclaración para el equipo', onChange: v => { x.notas = v; actualizarExtra(x, {notas: v}); renderTareasSeguro(); }},
     ], cerrarEdicion, [{texto: 'Pasar a "Todos los días"', titulo: 'Para algo que se repite: pasa a ser una tarea fija', onClick: () => pasarSurgioAFija(x)}])
   });
+}
+
+// ===== Anotador único: se elige si es de una vez, por varios días o fija =====
+let anot = {tipo:'una', desde:'', hasta:'', frecuencia:'Diaria', resp:'', hora:'', error:''};
+let ultimaAnotadaId = null;
+let focoAnotador = false;
+const HINTS_ANOT = {
+  una:   'Aparece hoy (o el día que elijas) y sigue apareciendo hasta que alguien la tilde.',
+  varios:'Aparece todos los días entre las dos fechas y se tilda cada día. Después del último día desaparece sola.',
+  fija:  'Queda para siempre en "Todos los días". Usala solo para tareas de rutina.'
+};
+
+function construirAnotador(fecha, filtroResp){
+  const box = crearEl('div', 'composer');
+  const top = crearEl('div', 'composer-top');
+  const quick = document.createElement('input');
+  quick.type = 'text';
+  quick.className = 'quick-add';
+  quick.placeholder = 'Anotá una tarea y apretá Enter';
+  quick.value = borradorQuickAdd;
+  quick.addEventListener('input', () => { borradorQuickAdd = quick.value; });
+  quick.addEventListener('keydown', (ev) => { if(ev.key === 'Enter'){ ev.preventDefault(); anotarTarea(fecha, filtroResp); } });
+  const btn = crearEl('button', 'btn', 'Anotar');
+  btn.addEventListener('click', () => anotarTarea(fecha, filtroResp));
+  top.appendChild(quick); top.appendChild(btn);
+  box.appendChild(top);
+
+  const tipos = crearEl('div', 'composer-tipos');
+  [['una','Una vez'],['varios','Varios días'],['fija','Rutina (todos los días)']].forEach(([k, txt]) => {
+    const b = crearEl('button', 'tipo-btn' + (anot.tipo === k ? ' on' : '') + (k === 'fija' ? ' fija' : ''), txt);
+    b.addEventListener('click', () => {
+      anot.tipo = k; anot.error = '';
+      if(k === 'varios' && !anot.hasta) anot.hasta = sumarDias(anot.desde || fecha, 2);
+      focoAnotador = true;
+      renderTareas();
+    });
+    tipos.appendChild(b);
+  });
+  box.appendChild(tipos);
+
+  const opts = crearEl('div', 'composer-opts');
+  const campoFecha = (etiqueta, valor, onCh) => {
+    const l = crearEl('label'); l.appendChild(crearEl('span', '', etiqueta));
+    const i = document.createElement('input'); i.type = 'date'; i.value = valor;
+    i.addEventListener('change', () => onCh(i.value));
+    l.appendChild(i); opts.appendChild(l);
+  };
+  if(anot.tipo === 'una'){
+    campoFecha('Para el', anot.desde || fecha, v => { anot.desde = (v && v !== fecha) ? v : ''; });
+  } else if(anot.tipo === 'varios'){
+    campoFecha('Desde', anot.desde || fecha, v => { anot.desde = (v && v !== fecha) ? v : ''; });
+    campoFecha('Hasta', anot.hasta || sumarDias(fecha, 2), v => { anot.hasta = v; });
+  } else {
+    const l = crearEl('label'); l.appendChild(crearEl('span', '', 'Se repite'));
+    const sel = document.createElement('select');
+    ['Diaria', ...DIAS_SEMANA].forEach(d => { const o = document.createElement('option'); o.value = d; o.textContent = d === 'Diaria' ? 'Todos los días' : 'Solo los ' + d.toLowerCase(); if(d === anot.frecuencia) o.selected = true; sel.appendChild(o); });
+    sel.addEventListener('change', () => { anot.frecuencia = sel.value; });
+    l.appendChild(sel); opts.appendChild(l);
+  }
+  const lr = crearEl('label'); lr.appendChild(crearEl('span', '', 'Responsable'));
+  const selR = document.createElement('select');
+  OPC_RESP().forEach(([v, t]) => { const o = document.createElement('option'); o.value = v; o.textContent = t; if(v === (anot.resp || filtroResp || '')) o.selected = true; selR.appendChild(o); });
+  selR.addEventListener('change', () => { anot.resp = selR.value; });
+  lr.appendChild(selR); opts.appendChild(lr);
+  const lh = crearEl('label'); lh.appendChild(crearEl('span', '', 'Hora límite'));
+  const ih = document.createElement('input'); ih.type = 'time'; ih.value = anot.hora;
+  ih.addEventListener('change', () => { anot.hora = ih.value; });
+  lh.appendChild(ih); opts.appendChild(lh);
+  box.appendChild(opts);
+
+  box.appendChild(crearEl('div', 'composer-hint' + (anot.tipo === 'fija' ? ' fija' : ''), HINTS_ANOT[anot.tipo]));
+  if(anot.error) box.appendChild(crearEl('div', 'composer-error', anot.error));
+  return box;
+}
+
+function anotarTarea(fecha, filtroResp){
+  const texto = (borradorQuickAdd || '').trim();
+  if(!texto){ anot.error = 'Escribí la tarea primero.'; focoAnotador = true; renderTareas(); return; }
+  const desde = anot.desde || fecha;
+  const resp = anot.resp || filtroResp || '';
+  let aviso = '';
+  if(anot.tipo === 'fija'){
+    const nueva = {id: uid(), area:'Operativo', tarea: texto, frecuencia: anot.frecuencia, horario:'', horaLimite: anot.hora, estado:'Pendiente', responsable: resp, notas:''};
+    tareas.push(nueva);
+    saveTareas();
+    aviso = 'Agregada a "Todos los días"' + (anot.frecuencia !== 'Diaria' ? ' (solo los ' + anot.frecuencia.toLowerCase() + ')' : '') + '.';
+  } else {
+    const x = {id: uid(), tarea: texto, creada: desde, creadaTs: new Date().toISOString(), hecha:false, hechaFecha:'', responsable: resp, horaLimite: anot.hora, notas:'', hasta:''};
+    if(anot.tipo === 'varios'){
+      const hasta = anot.hasta || sumarDias(fecha, 2);
+      if(hasta < desde){ anot.error = 'La fecha "hasta" tiene que ser igual o posterior a "desde".'; focoAnotador = true; renderTareas(); return; }
+      x.hasta = hasta; x.hechoDias = {};
+      aviso = 'Anotada del ' + fechaCorta(desde) + ' al ' + fechaCorta(hasta) + '.';
+    }
+    extras.push(x);
+    guardarExtra(x);
+    ultimaAnotadaId = x.id;
+    if(desde > fecha){ programadasAbiertas = true; aviso = aviso || ('Programada para el ' + diaYFecha(desde) + '.'); }
+  }
+  borradorQuickAdd = '';
+  // Después de cada alta vuelve a "Una vez": así nadie deja una tarea fija sin querer
+  anot = {tipo:'una', desde:'', hasta:'', frecuencia:'Diaria', resp: anot.resp, hora:'', error:''};
+  focoAnotador = true;
+  renderTareas();
+  if(aviso) mostrarAviso(aviso);
+  setTimeout(() => { if(ultimaAnotadaId) { ultimaAnotadaId = null; } }, 1700);
 }
 
 function encabezadoSeccion(titulo, hechas, total, descripcion){
@@ -2171,18 +2348,6 @@ function renderTareas(){
   secFijas.appendChild(encabezadoSeccion('Todos los días', fijasHechas, fijasTotal));
   filasFijas.forEach(f => secFijas.appendChild(f));
   if(filasFijas.length === 0) secFijas.appendChild(crearEl('div', 'task-empty', filtroResp ? ('Ninguna asignada a ' + filtroResp + '.') : 'No hay tareas fijas para este día.'));
-  const addFija = crearEl('button', 'btn ghost-add small', '+ Agregar tarea fija');
-  addFija.addEventListener('click', () => {
-    const nueva = {id: uid(), area:'Operativo', tarea:'Nueva tarea', frecuencia:'Diaria', horario:'', horaLimite:'', estado:'Pendiente', responsable:'', notas:''};
-    tareas.push(nueva);
-    tareaEditandoId = nueva.id;
-    list.dataset.focoNueva = nueva.id;
-    saveTareas();
-    renderTareas();
-  });
-  const pieFijas = crearEl('div', 'task-section-foot');
-  pieFijas.appendChild(addFija);
-  secFijas.appendChild(pieFijas);
 
   // --- 2. Del calendario ---
   const cal = calendarioParaFecha(fecha);
@@ -2205,52 +2370,20 @@ function renderTareas(){
   let exHechas = 0;
   const filasEx = [];
   ex.forEach(x => {
-    const alerta = calcularAlerta({horaLimite: x.horaLimite, estado: x.hecha ? 'Hecho' : 'Pendiente'}, fechaEsHoy);
+    const hx = extraHechaEn(x, fecha);
+    const alerta = calcularAlerta({horaLimite: x.horaLimite, estado: hx ? 'Hecho' : 'Pendiente'}, fechaEsHoy);
     total++;
-    if(x.hecha){ hechas++; exHechas++; }
+    if(hx){ hechas++; exHechas++; }
     if(alerta === 'vencido') vencidas++;
-    agregarSegmento(segmentos, x.hecha ? 'done' : (alerta === 'vencido' ? 'overdue' : ''), x.tarea);
+    agregarSegmento(segmentos, hx ? 'done' : (alerta === 'vencido' ? 'overdue' : ''), x.tarea);
     if(pasaFiltro(x.responsable)) filasEx.push(filaExtra(x, fecha, alerta));
   });
-  secEx.appendChild(encabezadoSeccion('Surgieron en el día', exHechas, ex.length, 'Siguen apareciendo hasta que se hagan'));
-  const quickWrap = crearEl('div', 'quick-add-wrap');
-  const quickFecha = document.createElement('input');
-  quickFecha.type = 'date';
-  quickFecha.className = 'quick-add-fecha';
-  quickFecha.title = 'Día en que tiene que aparecer (por defecto, el día que estás viendo)';
-  quickFecha.value = fechaQuickAdd || fecha;
-  quickFecha.addEventListener('change', () => { fechaQuickAdd = (quickFecha.value && quickFecha.value !== fecha) ? quickFecha.value : ''; });
-  const quickFechaWrap = crearEl('label', 'quick-add-para');
-  quickFechaWrap.appendChild(crearEl('span', '', 'Para el'));
-  quickFechaWrap.appendChild(quickFecha);
-  const quick = document.createElement('input');
-  quick.type = 'text';
-  quick.className = 'quick-add';
-  quick.placeholder = 'Anotá algo que surgió y apretá Enter';
-  quick.value = borradorQuickAdd;
-  quick.addEventListener('input', () => { borradorQuickAdd = quick.value; });
-  quick.addEventListener('keydown', (ev) => {
-    if(ev.key !== 'Enter' && ev.key !== 'Tab') return;
-    const texto = quick.value.trim();
-    if(!texto) return; // Tab con el campo vacío: se mueve al siguiente campo normalmente
-    ev.preventDefault();
-    const para = fechaQuickAdd || fecha;
-    const x = {id: uid(), tarea: texto, creada: para, creadaTs: new Date().toISOString(), hecha:false, hechaFecha:'', responsable: filtroResp || '', horaLimite:'', notas:''};
-    extras.push(x);
-    quick.value = '';
-    borradorQuickAdd = '';
-    fechaQuickAdd = '';
-    if(para > fecha) programadasAbiertas = true; // que se vea que quedó programada
-    guardarExtra(x);
-    renderTareas();
-  });
-  quickWrap.appendChild(quick);
-  quickWrap.appendChild(quickFechaWrap);
-  secEx.appendChild(quickWrap);
+  secEx.appendChild(encabezadoSeccion('Surgieron y temporales', exHechas, ex.length, 'Las de una vez siguen hasta que se hagan; las temporales, hasta su fecha'));
+  if(filasEx.length === 0) secEx.appendChild(crearEl('div', 'task-empty', 'Nada por ahora. Anotalas arriba.'));
   filasEx.forEach(f => secEx.appendChild(f));
 
   // Programadas para días siguientes
-  const futuras = extras.filter(x => !x.hecha && x.creada > fecha && pasaFiltro(x.responsable))
+  const futuras = extras.filter(x => (extraEsTemporal(x) || !x.hecha) && x.creada > fecha && pasaFiltro(x.responsable))
     .sort((a, b) => a.creada.localeCompare(b.creada));
   if(futuras.length){
     const toggle = crearEl('button', 'programadas-toggle', (programadasAbiertas ? '▾ ' : '▸ ') + 'Programadas para más adelante (' + futuras.length + ')');
@@ -2263,6 +2396,7 @@ function renderTareas(){
     }
   }
 
+  list.appendChild(construirAnotador(fecha, filtroResp));
   list.appendChild(secFijas);
   if(secCal.childNodes.length) list.appendChild(secCal);
   list.appendChild(secEx);
@@ -2281,9 +2415,10 @@ function renderTareas(){
 
   verificarAlertasYNotificar(fecha);
 
-  if(quickTeniaFoco){
+  if(quickTeniaFoco || focoAnotador){
     const q = list.querySelector('.quick-add');
     if(q) q.focus();
+    focoAnotador = false;
   }
   if(tareaEditandoId && list.dataset.focoNueva === tareaEditandoId){
     const inp = list.querySelector('.task-row.is-editing .edit-nombre');
@@ -2311,10 +2446,10 @@ function imprimirLista(){
     secciones.push({titulo: 'Del calendario', items: calendarioParaFecha(fecha)
       .map(c => ({texto: c.v.tarea, hecho: c.hecho, hora: '', resp: '', nota: c.atras > 0 ? ('Era para el ' + fechaCorta(c.fechaVenc)) : ''}))});
   }
-  secciones.push({titulo: 'Surgieron en el día', items: extrasParaFecha(fecha)
+  secciones.push({titulo: 'Surgieron y temporales', items: extrasParaFecha(fecha)
     .filter(x => pasaFiltro(x.responsable))
-    .map(x => ({texto: x.tarea, hecho: !!x.hecha, hora: x.horaLimite || '', resp: x.responsable || '',
-      nota: [x.creada < fecha && !x.hecha ? ('Viene del ' + fechaCorta(x.creada)) : '', x.notas || ''].filter(Boolean).join('. ')}))});
+    .map(x => ({texto: x.tarea, hecho: extraHechaEn(x, fecha), hora: x.horaLimite || '', resp: x.responsable || '',
+      nota: [extraEsTemporal(x) ? ('Hasta el ' + fechaCorta(x.hasta)) : (x.creada < fecha && !x.hecha ? ('Viene del ' + fechaCorta(x.creada)) : ''), x.notas || ''].filter(Boolean).join('. ')}))});
 
   const area = document.getElementById('printArea');
   area.innerHTML = '';
@@ -2393,8 +2528,25 @@ document.getElementById('filtroResp').addEventListener('change', renderTareas);
 document.getElementById('resetBtn').addEventListener('click', async () => {
   const fecha = document.getElementById('fechaHoy').value;
   if(!fecha) return;
-  if(!confirm('Esto guarda el día en el Historial y deja las tareas de todos los días en pendiente. Las del calendario y las que surgieron siguen como están. ¿Continuar?')) return;
+  if(!confirm('Esto guarda el día en el Historial y deja las tareas de todos los días en pendiente. Las del calendario y las que surgieron siguen como están.\n\n(Igual se hace solo al empezar el día siguiente.) ¿Continuar?')) return;
 
+  guardarSnapshotDelDia(fecha, false);
+  tareas.forEach(t => { t.estado = 'Pendiente'; });
+
+  if(esFechaHoyReal(fecha)){
+    try{ await diaRef().set({fecha, cerrado:true}); }catch(e){ console.error(e); }
+  }
+  const okHist = await saveHistorial();
+  const okTareas = await saveTareas();
+  renderHistorial();
+  renderTareas();
+  if(!okHist || !okTareas){
+    alert('Hubo un problema al guardar. Probá el botón "Guardar ahora" antes de seguir.');
+  }
+});
+
+// Arma la foto del día y la deja primera en el historial (reemplaza si ya había una de esa fecha)
+function guardarSnapshotDelDia(fecha, automatico){
   const diaSemana = diaSemanaDeFecha(fecha);
   const detalle = tareas
     .filter(t => aplicaHoy(t, diaSemana))
@@ -2403,7 +2555,7 @@ document.getElementById('resetBtn').addEventListener('click', async () => {
     detalle.push({tarea: c.v.tarea, estado: c.hecho ? 'Hecho' : 'Pendiente', responsable: '', tipo: 'calendario'});
   });
   extrasParaFecha(fecha).forEach(x => {
-    detalle.push({tarea: x.tarea, estado: x.hecha ? 'Hecho' : 'Pendiente', responsable: x.responsable || '', tipo: 'surgio'});
+    detalle.push({tarea: x.tarea, estado: extraHechaEn(x, fecha) ? 'Hecho' : 'Pendiente', responsable: x.responsable || '', tipo: extraEsTemporal(x) ? 'temporal' : 'surgio'});
   });
   const hechas = detalle.filter(d => d.estado === 'Hecho').length;
 
@@ -2413,23 +2565,68 @@ document.getElementById('resetBtn').addEventListener('click', async () => {
     diaSemana,
     total: detalle.length,
     hechas,
-    detalle
+    detalle,
+    automatico: !!automatico
   };
 
   historial = historial.filter(h => h.fecha !== fecha);
-  historial.unshift(snapshot);
+  historial.push(snapshot);
+  historial.sort((a, b) => b.fecha.localeCompare(a.fecha));
   if(historial.length > MAX_HISTORIAL) historial = historial.slice(0, MAX_HISTORIAL);
+}
 
-  tareas.forEach(t => { t.estado = 'Pendiente'; });
-
-  const okHist = await saveHistorial();
-  const okTareas = await saveTareas();
-  renderHistorial();
-  renderTareas();
-  if(!okHist || !okTareas){
-    alert('Hubo un problema al guardar. Probá el botón "Guardar ahora" antes de seguir.');
+// ===== Cierre automático del día =====
+// En Firebase queda guardado qué día está "abierto". La primera PC que abre la app en un día nuevo
+// (o la que quedó abierta cuando pasa la medianoche) cierra el día anterior: lo guarda en el Historial
+// y deja las tareas fijas en pendiente. Se usa una transacción para que no lo hagan dos PCs a la vez.
+const DIA_DOC = 'dia-abierto';
+function diaRef(){ return db.collection(FIRESTORE_COLLECTION).doc(DIA_DOC); }
+const datosListos = {tareas:false, venc:false, hist:false, extras:false};
+let diaYaRevisado = '';
+let revisandoDia = false;
+function marcarDatoListo(k){
+  if(datosListos[k]) return;
+  datosListos[k] = true;
+  revisarCambioDeDia();
+}
+async function revisarCambioDeDia(){
+  if(revisandoDia || !Object.values(datosListos).every(Boolean)) return;
+  const hoy = fechaStrDe(new Date());
+  if(diaYaRevisado === hoy) return;
+  revisandoDia = true;
+  try{
+    let diaACerrar = null, yaCerradoAMano = false;
+    await db.runTransaction(async tx => {
+      const snap = await tx.get(diaRef());
+      const d = snap.exists ? snap.data() : null;
+      diaACerrar = null; yaCerradoAMano = false;
+      if(!d || !d.fecha){ tx.set(diaRef(), {fecha: hoy, cerrado:false}); return; }
+      if(d.fecha >= hoy) return;
+      diaACerrar = d.fecha;
+      yaCerradoAMano = !!d.cerrado;
+      tx.set(diaRef(), {fecha: hoy, cerrado:false, anteriorCerradoSolo: !yaCerradoAMano});
+    });
+    if(diaACerrar){
+      if(!yaCerradoAMano) guardarSnapshotDelDia(diaACerrar, true);
+      tareas.forEach(t => { t.estado = 'Pendiente'; });
+      if(!yaCerradoAMano) await saveHistorial();
+      await saveTareas();
+      renderHistorial();
+      mostrarAviso(yaCerradoAMano
+        ? 'Arrancó un día nuevo: las tareas de todos los días quedaron en pendiente.'
+        : 'Se cerró solo el ' + diaYFecha(diaACerrar) + ' y quedó guardado en el Historial.');
+    }
+    // Si la pantalla quedó abierta desde ayer mostrando "hoy", pasa al día nuevo
+    const inp = document.getElementById('fechaHoy');
+    if(diaYaRevisado && inp.value === diaYaRevisado){ inp.value = hoy; alertasNotificadas.clear(); }
+    diaYaRevisado = hoy;
+    renderTareasSeguro();
+  }catch(e){
+    console.error('No se pudo revisar el cambio de día', e);
+  }finally{
+    revisandoDia = false;
   }
-});
+}
 
 // ---- Calendario ----
 MESES.forEach((m,i) => {
@@ -2615,7 +2812,7 @@ function renderHistorial(){
     const head = document.createElement('div');
     head.className = 'hist-head';
     const left = document.createElement('span');
-    left.innerHTML = '<b>' + h.fecha + '</b> &middot; ' + (h.diaSemana || '');
+    left.innerHTML = '<b>' + h.fecha + '</b> &middot; ' + (h.diaSemana || '') + (h.automatico ? ' <span style="color:var(--text-muted);font-weight:400">&middot; se cerró solo</span>' : '');
     const right = document.createElement('span');
     right.textContent = h.hechas + ' de ' + h.total + ' hechas';
     head.appendChild(left);
@@ -2627,7 +2824,7 @@ function renderHistorial(){
     (h.detalle || []).forEach(d => {
       const line = document.createElement('div');
       const resp = d.responsable ? (' — ' + d.responsable) : '';
-      const tipoTxt = d.tipo === 'calendario' ? ' (calendario)' : (d.tipo === 'surgio' ? ' (surgió en el día)' : '');
+      const tipoTxt = d.tipo === 'calendario' ? ' (calendario)' : (d.tipo === 'surgio' ? ' (surgió en el día)' : (d.tipo === 'temporal' ? ' (temporal)' : ''));
       line.textContent = '[' + d.estado + '] ' + d.tarea + tipoTxt + resp;
       detail.appendChild(line);
     });
@@ -2719,7 +2916,7 @@ document.getElementById('guardarTodoBtn').addEventListener('click', async () => 
   loadExtras();
   loadSidebarInfo();
   actualizarNotifBtn();
-  setInterval(renderTareasSeguro, 60000);
+  setInterval(() => { renderTareasSeguro(); revisarCambioDeDia(); }, 60000);
 })();
 </script>
 </body>
