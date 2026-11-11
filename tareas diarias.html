@@ -145,6 +145,15 @@
   .task-note{font-size:12px;color:var(--text-muted);font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:420px;}
 
   .avatar{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:600;color:#fff;flex-shrink:0;letter-spacing:.02em;}
+  .resp-picker{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+  .resp-opt{width:30px;height:30px;border-radius:50%;border:none;cursor:pointer;color:#fff;font-size:11px;font-weight:600;letter-spacing:.02em;padding:0;opacity:.4;transition:opacity .15s, box-shadow .15s, transform .15s;}
+  .resp-opt:hover{opacity:.8;transform:translateY(-1px);}
+  .resp-opt.on{opacity:1;box-shadow:0 0 0 2px var(--card), 0 0 0 4px var(--text);}
+  .resp-opt.texto{width:auto;height:30px;padding:0 12px;border-radius:999px;background:var(--card);color:var(--text-muted);border:1px solid var(--border-strong);opacity:1;font-size:12.5px;font-weight:500;letter-spacing:0;}
+  .resp-opt.texto.on{background:var(--navy-2);border-color:var(--navy-2);color:#fff;box-shadow:none;}
+  .resp-opt.vacio{background:transparent;border:1.5px dashed var(--border-strong);color:var(--text-muted);opacity:.7;}
+  .resp-opt.vacio.on{opacity:1;}
+  .task-edit .resp-picker{padding:3px 0;}
   .avatar.empty{background:transparent;border:1.5px dashed var(--border-strong);color:var(--text-muted);}
 
   .task-actions{display:flex;gap:2px;flex-shrink:0;}
@@ -398,8 +407,8 @@
         <span class="today-info" id="diaTexto"></span>
       </div>
       <div class="field">
-        <label for="filtroResp" style="margin:0">Responsable</label>
-        <select id="filtroResp"><option value="">Todos</option></select>
+        <span style="margin:0;font-size:13px;color:var(--text-muted)">Responsable</span>
+        <select id="filtroResp" hidden><option value="">Todos</option></select><div id="filtroRespChips"></div>
       </div>
       <div class="filter-check">
         <input type="checkbox" id="soloHoy" checked>
@@ -1690,7 +1699,38 @@ function calcularAlerta(t, fechaEsHoy){
   return null;
 }
 
+// Selector de responsable con los círculos de colores.
+// opcionVacia: [valor, texto, esCirculo] → "Todos" (pastilla) o "Sin asignar" (círculo punteado)
+function selectorAvatares(valor, opcionVacia, onPick){
+  const cont = crearEl('div', 'resp-picker');
+  const [vVacio, tVacio, circulo] = opcionVacia;
+  const vacio = crearEl('button', 'resp-opt ' + (circulo ? 'vacio' : 'texto') + (valor === vVacio ? ' on' : ''), circulo ? '—' : tVacio);
+  vacio.type = 'button'; vacio.title = tVacio;
+  vacio.addEventListener('click', () => onPick(vVacio));
+  cont.appendChild(vacio);
+  RESPONSABLES.forEach(r => {
+    const b = crearEl('button', 'resp-opt' + (valor === r ? ' on' : ''), r);
+    b.type = 'button'; b.title = r;
+    b.style.background = colorResponsable(r);
+    // Tocar el que ya está elegido lo deselecciona
+    b.addEventListener('click', () => onPick(valor === r ? vVacio : r));
+    cont.appendChild(b);
+  });
+  return cont;
+}
+
 function actualizarFiltroResponsables(){
+  const sel = document.getElementById('filtroResp');
+  const chips = document.getElementById('filtroRespChips');
+  chips.innerHTML = '';
+  chips.appendChild(selectorAvatares(sel.value, ['', 'Todos', false], v => {
+    actualizarFiltroResponsablesSelect();
+    sel.value = v;
+    sel.dispatchEvent(new Event('change'));
+  }));
+  actualizarFiltroResponsablesSelect();
+}
+function actualizarFiltroResponsablesSelect(){
   const select = document.getElementById('filtroResp');
   if(select.dataset.armado === '1') return;
   select.innerHTML = '<option value="">Todos</option>';
@@ -1937,6 +1977,11 @@ function panelEdicion(campos, onListo, acciones){
     const f = crearEl('div', 'f' + (c.wide ? ' wide' : ''));
     f.appendChild(crearEl('label', '', c.etiqueta));
     let ctrl;
+    if(c.avatares){
+      f.appendChild(selectorAvatares(c.valor || '', ['', 'Sin asignar', true], v => c.onChange(v)));
+      panel.appendChild(f);
+      return;
+    }
     if(c.opciones){
       ctrl = document.createElement('select');
       c.opciones.forEach(([v, txt]) => {
@@ -2106,7 +2151,7 @@ function filaFija(t, aplica, alerta, diaSemana){
       {etiqueta:'Frecuencia', valor:t.frecuencia, opciones:['Diaria', ...DIAS_SEMANA].map(d => [d, d === 'Diaria' ? 'Todos los días' : d]), onChange: v => { t.frecuencia = v; saveTareas(); renderTareas(); }},
       {etiqueta:'Hora límite', tipo:'time', valor:t.horaLimite, onChange: v => { t.horaLimite = v; saveTareas(); renderTareasSeguro(); }},
       {etiqueta:'Estado', valor:t.estado, opciones:[['Pendiente','Pendiente'],['En curso','En curso'],['Hecho','Hecha']], onChange: v => { t.estado = v; saveTareas(); renderTareas(); }},
-      {etiqueta:'Responsable', valor:t.responsable || '', opciones:OPC_RESP(), onChange: v => { t.responsable = v; saveTareas(); renderTareas(); }},
+      {etiqueta:'Responsable', valor:t.responsable || '', avatares:true, onChange: v => { t.responsable = v; saveTareas(); renderTareas(); }},
       {etiqueta:'Notas', valor:t.notas, wide:true, placeholder:'Una aclaración para el equipo', onChange: v => { t.notas = v; saveTareas(); renderTareasSeguro(); }},
     ], cerrarEdicion, [{texto: 'Pasar a "Surgieron en el día"', titulo: 'Para algo que se hace una sola vez: deja de repetirse todos los días', onClick: () => pasarFijaASurgio(t)}])
   });
@@ -2179,14 +2224,14 @@ function filaExtra(x, fecha, alerta){
         actualizarExtra(x, {hasta: x.hasta}); renderTareas();
       }},
       {etiqueta:'Hora límite', tipo:'time', valor:x.horaLimite, onChange: v => { x.horaLimite = v; actualizarExtra(x, {horaLimite: v}); renderTareasSeguro(); }},
-      {etiqueta:'Responsable', valor:x.responsable || '', opciones:OPC_RESP(), onChange: v => { x.responsable = v; actualizarExtra(x, {responsable: v}); renderTareas(); }},
+      {etiqueta:'Responsable', valor:x.responsable || '', avatares:true, onChange: v => { x.responsable = v; actualizarExtra(x, {responsable: v}); renderTareas(); }},
       {etiqueta:'Notas', valor:x.notas, wide:true, placeholder:'Una aclaración para el equipo', onChange: v => { x.notas = v; actualizarExtra(x, {notas: v}); renderTareasSeguro(); }},
     ], cerrarEdicion, [{texto: 'Pasar a "Todos los días"', titulo: 'Para algo que se repite: pasa a ser una tarea fija', onClick: () => pasarSurgioAFija(x)}])
   });
 }
 
 // ===== Anotador único: se elige si es de una vez, por varios días o fija =====
-let anot = {tipo:'una', desde:'', hasta:'', frecuencia:'Diaria', resp:'', hora:'', error:''};
+let anot = {tipo:'una', desde:'', hasta:'', frecuencia:'Diaria', resp:null, hora:'', error:''}; // resp null = usa el filtro de arriba
 let ultimaAnotadaId = null;
 let focoAnotador = false;
 const HINTS_ANOT = {
@@ -2242,11 +2287,11 @@ function construirAnotador(fecha, filtroResp){
     sel.addEventListener('change', () => { anot.frecuencia = sel.value; });
     l.appendChild(sel); opts.appendChild(l);
   }
-  const lr = crearEl('label'); lr.appendChild(crearEl('span', '', 'Responsable'));
-  const selR = document.createElement('select');
-  OPC_RESP().forEach(([v, t]) => { const o = document.createElement('option'); o.value = v; o.textContent = t; if(v === (anot.resp || filtroResp || '')) o.selected = true; selR.appendChild(o); });
-  selR.addEventListener('change', () => { anot.resp = selR.value; });
-  lr.appendChild(selR); opts.appendChild(lr);
+  const lr = crearEl('div'); lr.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text-muted)';
+  lr.appendChild(crearEl('span', '', 'Responsable'));
+  const respActual = anot.resp !== null ? anot.resp : (filtroResp || '');
+  lr.appendChild(selectorAvatares(respActual, ['', 'Sin asignar', true], v => { anot.resp = v; focoAnotador = !!borradorQuickAdd; renderTareas(); }));
+  opts.appendChild(lr);
   const lh = crearEl('label'); lh.appendChild(crearEl('span', '', 'Hora límite'));
   const ih = document.createElement('input'); ih.type = 'time'; ih.value = anot.hora;
   ih.addEventListener('change', () => { anot.hora = ih.value; });
@@ -2262,7 +2307,7 @@ function anotarTarea(fecha, filtroResp){
   const texto = (borradorQuickAdd || '').trim();
   if(!texto){ anot.error = 'Escribí la tarea primero.'; focoAnotador = true; renderTareas(); return; }
   const desde = anot.desde || fecha;
-  const resp = anot.resp || filtroResp || '';
+  const resp = anot.resp !== null ? anot.resp : (filtroResp || '');
   let aviso = '';
   if(anot.tipo === 'fija'){
     const nueva = {id: uid(), area:'Operativo', tarea: texto, frecuencia: anot.frecuencia, horario:'', horaLimite: anot.hora, estado:'Pendiente', responsable: resp, notas:''};
@@ -2317,8 +2362,9 @@ function renderTareas(){
   const filtroResp = document.getElementById('filtroResp').value;
   const fechaEsHoy = esFechaHoyReal(fecha);
 
-  actualizarFiltroResponsables();
+  actualizarFiltroResponsablesSelect();
   document.getElementById('filtroResp').value = filtroResp;
+  actualizarFiltroResponsables();
 
   const list = document.getElementById('tareasList');
   list.innerHTML = '';
